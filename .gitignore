@@ -1,0 +1,7 @@
+dynamodb_local_latest
+node_modules
+index.d.ts
+index.js
+test.d.ts
+test.js
+*.tgz
