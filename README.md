@@ -1,3 +1,5 @@
+[![npm](https://img.shields.io/npm/v/@nasa-gcn/dynamodb-autoincrement)](https://www.npmjs.com/package/@nasa-gcn/dynamodb-autoincrement)
+
 # dynamodb-autoincrement
 
 Use optimistic locking to put DynamoDB records with auto-incrementing attributes. Inspired by:
