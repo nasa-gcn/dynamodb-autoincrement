@@ -6,3 +6,4 @@ index.js
 test.d.ts
 test.js
 *.tgz
+.eslintcache
