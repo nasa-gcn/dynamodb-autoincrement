@@ -25,7 +25,7 @@
     "prepare:husky": "husky install",
     "prepare:tsc": "tsc",
     "prepare": "run-p prepare:*",
-    "test": "(test -e dynamodb_local_latest || (mkdir -p dynamodb_local_latest && curl https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz | tar -C dynamodb_local_latest -xz)) && jest test.js"
+    "test": "(test -e dynamodb_local_latest || (mkdir -p dynamodb_local_latest && curl https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz | tar -C dynamodb_local_latest -xz)) && jest"
   },
   "engines": {
     "node": ">=16"
@@ -95,6 +95,12 @@
     }
   },
   "jest": {
-    "preset": "@shelf/jest-dynamodb"
+    "collectCoverage": true,
+    "coverageReporters": [
+      "text",
+      "cobertura"
+    ],
+    "preset": "@shelf/jest-dynamodb",
+    "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.[j]s?$"
   }
 }
