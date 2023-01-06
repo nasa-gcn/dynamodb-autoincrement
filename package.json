@@ -16,7 +16,7 @@
       "email": "dakota.c.dutko@nasa.gov"
     }
   ],
-  "main": "index.js",
+  "main": "dist/index.js",
   "files": [
     "*.js",
     "*.d.ts"
@@ -50,6 +50,7 @@
     "lint-staged": "^13.1.0",
     "npm-run-all": "^4.1.5",
     "prettier": "^2.8.1",
+    "ts-jest": "^29.0.3",
     "typescript": "^4.9.4"
   },
   "peerDependencies": {
@@ -93,14 +94,5 @@
     "parserOptions": {
       "sourceType": "module"
     }
-  },
-  "jest": {
-    "collectCoverage": true,
-    "coverageReporters": [
-      "text",
-      "cobertura"
-    ],
-    "preset": "@shelf/jest-dynamodb",
-    "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.[j]s?$"
   }
 }
