@@ -6,7 +6,7 @@ import type {
 } from '@aws-sdk/lib-dynamodb'
 import type { NativeAttributeValue } from '@aws-sdk/util-dynamodb'
 
-export interface dynamoDBAutoIncrementProps {
+export interface DynamoDBAutoIncrementProps {
   /** a DynamoDB document client instance */
   doc: DynamoDBDocument
 
@@ -59,47 +59,40 @@ export interface dynamoDBAutoIncrementProps {
  * })
  * ```
  */
-export function dynamoDBAutoIncrement({
-  doc,
-  counterTableName,
-  counterTableKey,
-  counterTableAttributeName,
-  tableName,
-  tableAttributeName,
-  initialValue,
-  dangerously,
-}: dynamoDBAutoIncrementProps) {
-  async function getLast(): Promise<number | undefined> {
+export class DynamoDBAutoIncrement {
+  constructor(readonly props: DynamoDBAutoIncrementProps) {}
+
+  async getLast(): Promise<number | undefined> {
     return (
       (
-        await doc.get({
-          AttributesToGet: [counterTableAttributeName],
-          Key: counterTableKey,
-          TableName: counterTableName,
+        await this.props.doc.get({
+          AttributesToGet: [this.props.counterTableAttributeName],
+          Key: this.props.counterTableKey,
+          TableName: this.props.counterTableName,
         })
-      ).Item?.[counterTableAttributeName] ?? undefined
+      ).Item?.[this.props.counterTableAttributeName] ?? undefined
     )
   }
 
-  async function put(item: Record<string, NativeAttributeValue>) {
+  async put(item: Record<string, NativeAttributeValue>) {
     for (;;) {
-      const counter = await getLast()
+      const counter = await this.getLast()
 
       let nextCounter: number
       let Update: UpdateCommandInput & { UpdateExpression: string }
 
       if (counter === undefined) {
-        nextCounter = initialValue
+        nextCounter = this.props.initialValue
         Update = {
           ConditionExpression: 'attribute_not_exists(#counter)',
           ExpressionAttributeNames: {
-            '#counter': counterTableAttributeName,
+            '#counter': this.props.counterTableAttributeName,
           },
           ExpressionAttributeValues: {
             ':nextCounter': nextCounter,
           },
-          Key: counterTableKey,
-          TableName: counterTableName,
+          Key: this.props.counterTableKey,
+          TableName: this.props.counterTableName,
           UpdateExpression: 'SET #counter = :nextCounter',
         }
       } else {
@@ -107,30 +100,35 @@ export function dynamoDBAutoIncrement({
         Update = {
           ConditionExpression: '#counter = :counter',
           ExpressionAttributeNames: {
-            '#counter': counterTableAttributeName,
+            '#counter': this.props.counterTableAttributeName,
           },
           ExpressionAttributeValues: {
             ':counter': counter,
             ':nextCounter': nextCounter,
           },
-          Key: counterTableKey,
-          TableName: counterTableName,
+          Key: this.props.counterTableKey,
+          TableName: this.props.counterTableName,
           UpdateExpression: 'SET #counter = :nextCounter',
         }
       }
 
       const Put: PutCommandInput = {
         ConditionExpression: 'attribute_not_exists(#counter)',
-        ExpressionAttributeNames: { '#counter': tableAttributeName },
-        Item: { [tableAttributeName]: nextCounter, ...item },
-        TableName: tableName,
+        ExpressionAttributeNames: { '#counter': this.props.tableAttributeName },
+        Item: { [this.props.tableAttributeName]: nextCounter, ...item },
+        TableName: this.props.tableName,
       }
 
-      if (dangerously) {
-        await Promise.all([doc.update(Update), doc.put(Put)])
+      if (this.props.dangerously) {
+        await Promise.all([
+          this.props.doc.update(Update),
+          this.props.doc.put(Put),
+        ])
       } else {
         try {
-          await doc.transactWrite({ TransactItems: [{ Update }, { Put }] })
+          await this.props.doc.transactWrite({
+            TransactItems: [{ Update }, { Put }],
+          })
         } catch (e) {
           if (e instanceof TransactionCanceledException) {
             continue
@@ -143,8 +141,4 @@ export function dynamoDBAutoIncrement({
       return nextCounter
     }
   }
-
-  put.getLast = getLast
-
-  return put
 }

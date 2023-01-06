@@ -3,12 +3,12 @@ import {
   DynamoDB,
 } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
-import type { dynamoDBAutoIncrementProps } from '.'
-import { dynamoDBAutoIncrement } from '.'
+import type { DynamoDBAutoIncrementProps } from '.'
+import { DynamoDBAutoIncrement } from '.'
 
 let doc: DynamoDBDocument
-let autoincrement: ReturnType<typeof dynamoDBAutoIncrement>
-let autoincrementDangerously: ReturnType<typeof dynamoDBAutoIncrement>
+let autoincrement: DynamoDBAutoIncrement
+let autoincrementDangerously: DynamoDBAutoIncrement
 const N = 20
 
 beforeAll(async () => {
@@ -19,7 +19,7 @@ beforeAll(async () => {
       region: '-',
     })
   )
-  const options: dynamoDBAutoIncrementProps = {
+  const options: DynamoDBAutoIncrementProps = {
     doc,
     counterTableName: 'autoincrement',
     counterTableKey: { tableName: 'widgets' },
@@ -28,8 +28,8 @@ beforeAll(async () => {
     tableAttributeName: 'widgetID',
     initialValue: 1,
   }
-  autoincrement = dynamoDBAutoIncrement(options)
-  autoincrementDangerously = dynamoDBAutoIncrement({
+  autoincrement = new DynamoDBAutoIncrement(options)
+  autoincrementDangerously = new DynamoDBAutoIncrement({
     ...options,
     dangerously: true,
   })
@@ -71,7 +71,7 @@ describe('dynamoDBAutoIncrement', () => {
         nextID = lastID + 1
       }
 
-      const result = await autoincrement({ widgetName: 'runcible spoon' })
+      const result = await autoincrement.put({ widgetName: 'runcible spoon' })
       expect(result).toEqual(nextID)
 
       expect(await autoincrement.getLast()).toEqual(nextID)
@@ -96,7 +96,7 @@ describe('dynamoDBAutoIncrement', () => {
 
   test('correctly handles a large number of parallel puts', async () => {
     const ids = Array.from(Array(N).keys()).map((i) => i + 1)
-    const result = await Promise.all(ids.map(() => autoincrement({})))
+    const result = await Promise.all(ids.map(() => autoincrement.put({})))
     expect(result.sort()).toEqual(ids.sort())
   })
 })
@@ -106,7 +106,7 @@ describe('dynamoDBAutoIncrement dangerously', () => {
     const ids = Array.from(Array(N).keys()).map((i) => i + 1)
     const result: number[] = []
     for (const item of ids) {
-      result.push(await autoincrementDangerously({ widgetName: item }))
+      result.push(await autoincrementDangerously.put({ widgetName: item }))
     }
     expect(result.sort()).toEqual(ids.sort())
   })
@@ -114,7 +114,8 @@ describe('dynamoDBAutoIncrement dangerously', () => {
   test('fails on a large number of parallel puts', async () => {
     const ids = Array.from(Array(N).keys()).map((i) => i + 1)
     await expect(
-      async () => await Promise.all(ids.map(() => autoincrementDangerously({})))
+      async () =>
+        await Promise.all(ids.map(() => autoincrementDangerously.put({})))
     ).rejects.toThrow(ConditionalCheckFailedException)
   })
 })
