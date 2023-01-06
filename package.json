@@ -16,7 +16,6 @@
       "email": "dakota.c.dutko@nasa.gov"
     }
   ],
-  "main": "dist/index.js",
   "files": [
     "*.js",
     "*.d.ts"
