@@ -74,6 +74,8 @@ describe('dynamoDBAutoIncrement', () => {
       const result = await autoincrement({ widgetName: 'runcible spoon' })
       expect(result).toEqual(nextID)
 
+      expect(await autoincrement.getLast()).toEqual(nextID)
+
       const [widgetItems, autoincrementItems] = await Promise.all(
         ['widgets', 'autoincrement'].map(
           async (TableName) => (await doc.scan({ TableName })).Items

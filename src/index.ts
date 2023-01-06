@@ -69,16 +69,21 @@ export function dynamoDBAutoIncrement({
   initialValue,
   dangerously,
 }: dynamoDBAutoIncrementProps) {
-  return async (item: Record<string, NativeAttributeValue>) => {
+  async function getLast(): Promise<number | undefined> {
+    return (
+      (
+        await doc.get({
+          AttributesToGet: [counterTableAttributeName],
+          Key: counterTableKey,
+          TableName: counterTableName,
+        })
+      ).Item?.[counterTableAttributeName] ?? undefined
+    )
+  }
+
+  async function put(item: Record<string, NativeAttributeValue>) {
     for (;;) {
-      const counter =
-        (
-          await doc.get({
-            AttributesToGet: [counterTableAttributeName],
-            Key: counterTableKey,
-            TableName: counterTableName,
-          })
-        ).Item?.[counterTableAttributeName] ?? undefined
+      const counter = await getLast()
 
       let nextCounter: number
       let Update: UpdateCommandInput & { UpdateExpression: string }
@@ -138,4 +143,8 @@ export function dynamoDBAutoIncrement({
       return nextCounter
     }
   }
+
+  put.getLast = getLast
+
+  return put
 }
