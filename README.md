@@ -1,4 +1,5 @@
 [![npm](https://img.shields.io/npm/v/@nasa-gcn/dynamodb-autoincrement)](https://www.npmjs.com/package/@nasa-gcn/dynamodb-autoincrement)
+[![codecov](https://codecov.io/gh/nasa-gcn/dynamodb-autoincrement/branch/main/graph/badge.svg?token=C84AQR8UAS)](https://codecov.io/gh/nasa-gcn/dynamodb-autoincrement)
 
 # dynamodb-autoincrement
 
