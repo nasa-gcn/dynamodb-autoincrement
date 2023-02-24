@@ -17,8 +17,8 @@
     }
   ],
   "files": [
-    "*.js",
-    "*.d.ts"
+    "index.js",
+    "index.d.ts"
   ],
   "scripts": {
     "prepare:husky": "husky install",
