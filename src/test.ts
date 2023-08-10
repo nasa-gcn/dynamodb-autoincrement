@@ -14,9 +14,12 @@ const N = 20
 beforeAll(async () => {
   doc = DynamoDBDocument.from(
     new DynamoDB({
-      credentials: { accessKeyId: '-', secretAccessKey: '-' },
+      credentials: {
+        accessKeyId: 'fakeMyKeyId',
+        secretAccessKey: 'fakeSecretAccessKey',
+      },
       endpoint: 'http://localhost:8000',
-      region: '-',
+      region: 'local-env',
     })
   )
   const options: DynamoDBAutoIncrementProps = {
