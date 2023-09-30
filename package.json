@@ -29,9 +29,12 @@
   "engines": {
     "node": ">=16"
   },
-  "devDependencies": {
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.188.0",
     "@aws-sdk/lib-dynamodb": "^3.188.0",
-    "@aws-sdk/util-dynamodb": "^3.188.0",
+    "@aws-sdk/util-dynamodb": "^3.188.0"
+  },
+  "devDependencies": {
     "@nasa-gcn/eslint-config-gitignore": "^0.0.1",
     "@shelf/jest-dynamodb": "^3.4.2",
     "@tsconfig/node14": "^1.0.3",
