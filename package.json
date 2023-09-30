@@ -1,6 +1,6 @@
 {
   "name": "@nasa-gcn/dynamodb-autoincrement",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": {
     "type": "git",
     "url": "github:nasa-gcn/dynamodb-autoincrement"
