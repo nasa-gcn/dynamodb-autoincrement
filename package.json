@@ -24,7 +24,7 @@
     "prepare:husky": "husky install",
     "prepare:tsc": "tsc",
     "prepare": "run-p prepare:*",
-    "test": "(test -e dynamodb_local_latest || (mkdir -p dynamodb_local_latest && curl https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz | tar -C dynamodb_local_latest -xz)) && jest"
+    "test": "node setup-dynamodb-local.mjs && jest"
   },
   "engines": {
     "node": ">=16"
