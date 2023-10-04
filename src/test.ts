@@ -3,12 +3,16 @@ import {
   DynamoDB,
 } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
-import type { DynamoDBAutoIncrementProps } from '.'
+import { DynamoDBAutoIncrementProps } from '.'
 import { DynamoDBAutoIncrement } from '.'
 
 let doc: DynamoDBDocument
 let autoincrement: DynamoDBAutoIncrement
 let autoincrementDangerously: DynamoDBAutoIncrement
+
+let autoincrementPlusField: DynamoDBAutoIncrement
+let autoincrementPlusFieldDangerously: DynamoDBAutoIncrement
+
 const N = 20
 
 beforeAll(async () => {
@@ -31,9 +35,30 @@ beforeAll(async () => {
     tableAttributeName: 'widgetID',
     initialValue: 1,
   }
+
+  const fieldOptions = {
+    ...options,
+    counterTableKey: {
+      tableName: 'widgets',
+    },
+    secondaryIncrementAttributeName: 'version',
+    secondaryIncrementTableName: 'autoincrementField',
+    secondaryIncrementItemPrimaryKey: 'widgetID',
+    secondaryIncrementDefaultValue: 1,
+  }
   autoincrement = new DynamoDBAutoIncrement(options)
+  autoincrementPlusField = new DynamoDBAutoIncrement(fieldOptions)
   autoincrementDangerously = new DynamoDBAutoIncrement({
     ...options,
+    dangerously: true,
+  })
+
+  autoincrementPlusFieldDangerously = new DynamoDBAutoIncrement({
+    ...options,
+    secondaryIncrementAttributeName: 'version',
+    secondaryIncrementTableName: 'autoincrementField',
+    secondaryIncrementItemPrimaryKey: 'widgetID',
+    secondaryIncrementDefaultValue: 1,
     dangerously: true,
   })
 })
@@ -44,18 +69,49 @@ afterEach(async () => {
     [
       { TableName: 'autoincrement', KeyAttributeName: 'tableName' },
       { TableName: 'widgets', KeyAttributeName: 'widgetID' },
-    ].map(
-      async ({ TableName, KeyAttributeName }) =>
-        await Promise.all(
-          ((await doc.scan({ TableName })).Items ?? []).map(
-            async ({ [KeyAttributeName]: KeyValue }) =>
-              await doc.delete({
-                TableName,
-                Key: { [KeyAttributeName]: KeyValue },
-              })
+    ]
+      .map(
+        async ({ TableName, KeyAttributeName }) =>
+          await Promise.all(
+            ((await doc.scan({ TableName })).Items ?? []).map(
+              async ({ [KeyAttributeName]: KeyValue }) =>
+                await doc.delete({
+                  TableName,
+                  Key: { [KeyAttributeName]: KeyValue },
+                })
+            )
           )
+      )
+      .concat(
+        ...[
+          {
+            TableName: 'autoincrementField',
+            PartitionKeyAttributeName: 'tableName',
+            SortKeyAttributeName: 'tableItemPartitionKey',
+          },
+        ].map(
+          async ({
+            TableName,
+            PartitionKeyAttributeName,
+            SortKeyAttributeName,
+          }) =>
+            await Promise.all(
+              ((await doc.scan({ TableName })).Items ?? []).map(
+                async ({
+                  [PartitionKeyAttributeName]: KeyValue,
+                  [SortKeyAttributeName]: SortKeyValue,
+                }) =>
+                  await doc.delete({
+                    TableName,
+                    Key: {
+                      [PartitionKeyAttributeName]: KeyValue,
+                      [SortKeyAttributeName]: SortKeyValue,
+                    },
+                  })
+              )
+            )
         )
-    )
+      )
   )
 })
 
@@ -120,5 +176,121 @@ describe('dynamoDBAutoIncrement dangerously', () => {
       async () =>
         await Promise.all(ids.map(() => autoincrementDangerously.put({})))
     ).rejects.toThrow(ConditionalCheckFailedException)
+  })
+})
+
+describe('DynamoDBFieldAutoIncrement', () => {
+  test.each([1, 2])(
+    'gets the version for a widget with ID: %o',
+    async (widgetID) => {
+      // Add new rows to autoincrementField
+      await doc.put({
+        TableName: 'autoincrementField',
+        Item: {
+          tableName: 'widgets',
+          tableItemPartitionKey: widgetID.toString(),
+          version: 1,
+        },
+      })
+      console.log(widgetID)
+      // Check version == 1
+      expect(await autoincrementPlusField.getLastPerItem({ widgetID })).toEqual(
+        1
+      )
+    }
+  )
+
+  test('returns undefined when the field is missing', async () => {
+    const result = await autoincrementPlusField.getLastPerItem({
+      widgetID: 3,
+    })
+    expect(result).toBeUndefined()
+  })
+
+  test('inserts a new entry with tracked field set to 1', async () => {
+    // Insert a new row into the widget table
+    const result = await autoincrementPlusField.put({
+      widgetName: 'useful widget',
+      version: autoincrementPlusField.props.secondaryIncrementDefaultValue,
+    })
+    const version = await autoincrementPlusField.getLastPerItem({
+      widgetID: result,
+    })
+    expect(version).toBe(1)
+  })
+
+  test('updates the specified increment field on update', async () => {
+    const result = await autoincrementPlusField.put({
+      widgetName: 'new widget',
+      version: autoincrementPlusField.props.secondaryIncrementDefaultValue,
+    })
+    const version = await autoincrementPlusField.getLastPerItem({
+      widgetID: result,
+    })
+    expect(version).toBe(1)
+
+    if (!version) return false
+
+    const updatedVersion = await autoincrementPlusField.update({
+      widgetID: result,
+      widgetName: 'better widget',
+    })
+    expect(updatedVersion).toBe(2)
+  })
+
+  test('throws an error when the partition key is missing from update', async () => {
+    const result = await autoincrementPlusField.put({
+      widgetName: 'new widget',
+      version: autoincrementPlusField.props.secondaryIncrementDefaultValue,
+    })
+    const version = await autoincrementPlusField.getLastPerItem({
+      widgetID: result,
+    })
+    expect(version).toBe(1)
+
+    if (!version) return false
+
+    const updatedVersion = async () => {
+      await autoincrementPlusField.update({
+        // widgetID:result,
+        widgetName: 'better widget',
+      })
+    }
+    await expect(updatedVersion()).rejects.toThrow(TypeError)
+  })
+})
+
+describe('DynamoDBFieldAutoIncrement dangerously', () => {
+  test('inserts a new entry with tracked field set to 1', async () => {
+    // Insert a new row into the widget table
+    const result = await autoincrementPlusFieldDangerously.put({
+      widgetName: 'useful widget',
+      version:
+        autoincrementPlusFieldDangerously.props.secondaryIncrementDefaultValue,
+    })
+    const version = await autoincrementPlusFieldDangerously.getLastPerItem({
+      widgetID: result,
+    })
+    expect(version).toBe(1)
+  })
+
+  test('updates the specified increment field on update', async () => {
+    const result = await autoincrementPlusFieldDangerously.put({
+      widgetName: 'new widget',
+      version:
+        autoincrementPlusFieldDangerously.props.secondaryIncrementDefaultValue,
+    })
+    const version = await autoincrementPlusFieldDangerously.getLastPerItem({
+      widgetID: result,
+    })
+    expect(version).toBe(1)
+
+    if (!version) return false
+
+    const updatedVersion = await autoincrementPlusFieldDangerously.update({
+      widgetID: result,
+      widgetName: 'better widget',
+    })
+    expect(updatedVersion).toBe(2)
   })
 })
