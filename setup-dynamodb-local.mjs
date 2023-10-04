@@ -1,6 +1,7 @@
 import { mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
-import { execSync } from 'child_process'
+import stream from 'node:stream'
+import tar from 'tar'
 
 const dynamodbDir = 'dynamodb_local_latest'
 const dynamodbArchiveURL =
@@ -12,17 +13,11 @@ async function runSetup() {
     // If it doesn't exist, create it
     await mkdir(dynamodbDir, { recursive: true })
 
-    // Download and extract DynamoDB Local
-    try {
-      console.log('Downloading DynamoDB Local...')
-      execSync(`curl -L ${dynamodbArchiveURL} | tar -xz -C ${dynamodbDir}`, {
-        stdio: 'inherit',
+    stream.Readable.fromWeb((await fetch(dynamodbArchiveURL)).body).pipe(
+      tar.x({
+        C: dynamodbDir,
       })
-      console.log('DynamoDB Local setup completed successfully.')
-    } catch (error) {
-      console.error('Error setting up DynamoDB Local:', error.message)
-      process.exit(1)
-    }
+    )
   }
 }
 

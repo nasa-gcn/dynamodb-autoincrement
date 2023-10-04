@@ -32,7 +32,8 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.188.0",
     "@aws-sdk/lib-dynamodb": "^3.188.0",
-    "@aws-sdk/util-dynamodb": "^3.188.0"
+    "@aws-sdk/util-dynamodb": "^3.188.0",
+    "tar": "^6.2.0"
   },
   "devDependencies": {
     "@nasa-gcn/eslint-config-gitignore": "^0.0.1",
