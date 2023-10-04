@@ -129,6 +129,13 @@ export class DynamoDBAutoIncrement {
     this.secondaryIncrementTableName = props.secondaryIncrementTableName ?? ''
   }
 
+  #verifySecondaryIndexing() {
+    if (!this.useSecondaryIndexing)
+      throw new Error(
+        'Secondary increment properties are required for this functionality'
+      )
+  }
+
   /**
    * Gets the latest value of the incrementing partition key for
    * items in the table defined on `this.props.counterTableKey.tableName`
@@ -154,27 +161,21 @@ export class DynamoDBAutoIncrement {
   async getLastPerItem(
     item: Record<string, NativeAttributeValue>
   ): Promise<number | undefined> {
-    if (
-      !this.props.secondaryIncrementItemPrimaryKey ||
-      !this.props.secondaryIncrementAttributeName
-    )
-      throw new Error(
-        'secondaryIncrementItemPrimaryKey and secondaryIncrementAttributeName are required for per-entry indexing'
-      )
-    console.log(JSON.stringify(item))
+    this.#verifySecondaryIndexing()
+
     const key = {
       tableName: this.props.counterTableKey.tableName,
       tableItemPartitionKey:
-        item[this.props.secondaryIncrementItemPrimaryKey].toString(),
+        item[this.secondaryIncrementItemPrimaryKey].toString(),
     }
     return (
       (
         await this.props.doc.get({
-          AttributesToGet: [this.props.secondaryIncrementAttributeName],
+          AttributesToGet: [this.secondaryIncrementAttributeName],
           Key: key,
-          TableName: this.props.secondaryIncrementTableName,
+          TableName: this.secondaryIncrementTableName,
         })
-      ).Item?.[this.props.secondaryIncrementAttributeName] ?? undefined
+      ).Item?.[this.secondaryIncrementAttributeName] ?? undefined
     )
   }
 
@@ -220,7 +221,7 @@ export class DynamoDBAutoIncrement {
         ? {
             ...item,
             [this.secondaryIncrementAttributeName]:
-              this.props.secondaryIncrementDefaultValue,
+              this.secondaryIncrementDefaultValue,
           }
         : item
 
@@ -250,16 +251,12 @@ export class DynamoDBAutoIncrement {
         }
       }
 
-      if (
-        this.props.secondaryIncrementAttributeName &&
-        this.props.secondaryIncrementTableName &&
-        this.props.secondaryIncrementItemPrimaryKey
-      ) {
+      if (this.useSecondaryIndexing) {
         const secondaryIncrementItem = {
           tableName: this.props.tableName,
           tableItemPartitionKey: nextCounter.toString(),
-          [this.props.secondaryIncrementAttributeName]:
-            this.props.secondaryIncrementDefaultValue,
+          [this.secondaryIncrementAttributeName]:
+            this.secondaryIncrementDefaultValue,
         }
 
         const SecondaryIncrementPut: PutCommandInput = {
@@ -270,7 +267,7 @@ export class DynamoDBAutoIncrement {
             '#sk': nextCounter.toString(),
           },
           Item: secondaryIncrementItem,
-          TableName: this.props.secondaryIncrementTableName,
+          TableName: this.secondaryIncrementTableName,
         }
 
         await this.props.doc.put(SecondaryIncrementPut)
@@ -287,14 +284,12 @@ export class DynamoDBAutoIncrement {
    * new entries with a tracked value
    */
   async update(item: Record<string, NativeAttributeValue>) {
-    if (this.verifySecondaryIncrementProps()) throw new Error()
+    this.#verifySecondaryIndexing()
 
     for (;;) {
       const counter =
         (await this.getLastPerItem(item)) ?? this.secondaryIncrementDefaultValue
       const nextCounter = counter + 1
-      // const temp = this.props.counterTableKey as CompoundCounterTableKey
-
       const Update: UpdateCommandInput & { UpdateExpression: string } = {
         ConditionExpression: '#counter = :counter',
         ExpressionAttributeNames: {
@@ -331,13 +326,5 @@ export class DynamoDBAutoIncrement {
 
       return nextCounter
     }
-  }
-  verifySecondaryIncrementProps(): boolean {
-    return (
-      !this.props.secondaryIncrementAttributeName ||
-      !this.props.secondaryIncrementDefaultValue ||
-      !this.props.secondaryIncrementItemPrimaryKey ||
-      !this.props.secondaryIncrementTableName
-    )
   }
 }

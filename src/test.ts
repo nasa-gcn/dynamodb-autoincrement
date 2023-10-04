@@ -192,7 +192,7 @@ describe('DynamoDBFieldAutoIncrement', () => {
           version: 1,
         },
       })
-      console.log(widgetID)
+
       // Check version == 1
       expect(await autoincrementPlusField.getLastPerItem({ widgetID })).toEqual(
         1
