@@ -242,6 +242,7 @@ describe('DynamoDBFieldAutoIncrement', () => {
       })
     ).Item
     expect(updatedWidget).toBeDefined()
+    expect(updatedWidget?.version).toBe(updatedVersion)
     expect(updatedWidget?.widgetName).toBe('better widget')
     expect(updatedVersion).toBe(2)
   })
@@ -308,6 +309,7 @@ describe('DynamoDBFieldAutoIncrement dangerously', () => {
       })
     ).Item
     expect(updatedWidget).toBeDefined()
+    expect(updatedWidget?.version).toBe(updatedVersion)
     expect(updatedWidget?.widgetName).toBe('better widget')
     expect(updatedWidget?.bonusProp).toBe(123456)
   })
