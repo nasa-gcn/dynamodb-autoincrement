@@ -44,14 +44,6 @@ export interface DynamoDBAutoIncrementProps {
   secondaryIncrementDefaultValue?: number
 }
 
-export interface CounterTableKey {
-  tableName: string
-}
-
-export interface CompoundCounterTableKey extends CounterTableKey {
-  tableItemPartitionKey: string
-}
-
 /**
  * Update an auto-incrementing partition key in DynamoDB.
  *
@@ -108,29 +100,30 @@ export interface CompoundCounterTableKey extends CounterTableKey {
 
  */
 export class DynamoDBAutoIncrement {
-  useSecondaryIndexing: boolean
-  secondaryIncrementAttributeName: string
-  secondaryIncrementTableName: string
-  secondaryIncrementItemPrimaryKey: string
-  secondaryIncrementDefaultValue: number
+  #useSecondaryIndexing: boolean
+  #secondaryIncrementAttributeName: string
+  #secondaryIncrementTableName: string
+  #secondaryIncrementItemPrimaryKey: string
+  #secondaryIncrementDefaultValue: number
+
   constructor(readonly props: DynamoDBAutoIncrementProps) {
-    this.useSecondaryIndexing =
+    this.#useSecondaryIndexing =
       props.secondaryIncrementAttributeName != undefined &&
       props.secondaryIncrementDefaultValue != undefined &&
       props.secondaryIncrementItemPrimaryKey != undefined &&
       props.secondaryIncrementDefaultValue != undefined
 
-    this.secondaryIncrementAttributeName =
+    this.#secondaryIncrementAttributeName =
       props.secondaryIncrementAttributeName ?? ''
-    this.secondaryIncrementDefaultValue =
+    this.#secondaryIncrementDefaultValue =
       props.secondaryIncrementDefaultValue ?? 1
-    this.secondaryIncrementItemPrimaryKey =
+    this.#secondaryIncrementItemPrimaryKey =
       props.secondaryIncrementItemPrimaryKey ?? ''
-    this.secondaryIncrementTableName = props.secondaryIncrementTableName ?? ''
+    this.#secondaryIncrementTableName = props.secondaryIncrementTableName ?? ''
   }
 
   #verifySecondaryIndexing() {
-    if (!this.useSecondaryIndexing)
+    if (!this.#useSecondaryIndexing)
       throw new Error(
         'Secondary increment properties are required for this functionality'
       )
@@ -166,16 +159,16 @@ export class DynamoDBAutoIncrement {
     const key = {
       tableName: this.props.counterTableKey.tableName,
       tableItemPartitionKey:
-        item[this.secondaryIncrementItemPrimaryKey].toString(),
+        item[this.#secondaryIncrementItemPrimaryKey].toString(),
     }
     return (
       (
         await this.props.doc.get({
-          AttributesToGet: [this.secondaryIncrementAttributeName],
+          AttributesToGet: [this.#secondaryIncrementAttributeName],
           Key: key,
-          TableName: this.secondaryIncrementTableName,
+          TableName: this.#secondaryIncrementTableName,
         })
-      ).Item?.[this.secondaryIncrementAttributeName] ?? undefined
+      ).Item?.[this.#secondaryIncrementAttributeName] ?? undefined
     )
   }
 
@@ -217,11 +210,11 @@ export class DynamoDBAutoIncrement {
         }
       }
 
-      const newItem = this.useSecondaryIndexing
+      const newItem = this.#useSecondaryIndexing
         ? {
             ...item,
-            [this.secondaryIncrementAttributeName]:
-              this.secondaryIncrementDefaultValue,
+            [this.#secondaryIncrementAttributeName]:
+              this.#secondaryIncrementDefaultValue,
           }
         : item
 
@@ -251,12 +244,12 @@ export class DynamoDBAutoIncrement {
         }
       }
 
-      if (this.useSecondaryIndexing) {
+      if (this.#useSecondaryIndexing) {
         const secondaryIncrementItem = {
           tableName: this.props.tableName,
           tableItemPartitionKey: nextCounter.toString(),
-          [this.secondaryIncrementAttributeName]:
-            this.secondaryIncrementDefaultValue,
+          [this.#secondaryIncrementAttributeName]:
+            this.#secondaryIncrementDefaultValue,
         }
 
         const SecondaryIncrementPut: PutCommandInput = {
@@ -267,7 +260,7 @@ export class DynamoDBAutoIncrement {
             '#sk': nextCounter.toString(),
           },
           Item: secondaryIncrementItem,
-          TableName: this.secondaryIncrementTableName,
+          TableName: this.#secondaryIncrementTableName,
         }
 
         await this.props.doc.put(SecondaryIncrementPut)
@@ -288,12 +281,13 @@ export class DynamoDBAutoIncrement {
 
     for (;;) {
       const counter =
-        (await this.getLastPerItem(item)) ?? this.secondaryIncrementDefaultValue
+        (await this.getLastPerItem(item)) ??
+        this.#secondaryIncrementDefaultValue
       const nextCounter = counter + 1
       const Update: UpdateCommandInput & { UpdateExpression: string } = {
         ConditionExpression: '#counter = :counter',
         ExpressionAttributeNames: {
-          '#counter': this.secondaryIncrementAttributeName,
+          '#counter': this.#secondaryIncrementAttributeName,
         },
         ExpressionAttributeValues: {
           ':counter': counter,
@@ -302,9 +296,9 @@ export class DynamoDBAutoIncrement {
         Key: {
           tableName: this.props.counterTableKey.tableName,
           tableItemPartitionKey:
-            item[this.secondaryIncrementItemPrimaryKey].toString(),
+            item[this.#secondaryIncrementItemPrimaryKey].toString(),
         },
-        TableName: this.secondaryIncrementTableName,
+        TableName: this.#secondaryIncrementTableName,
         UpdateExpression: 'SET #counter = :nextCounter',
       }
 
