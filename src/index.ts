@@ -279,11 +279,15 @@ export class DynamoDBAutoIncrement {
   async update(item: Record<string, NativeAttributeValue>) {
     this.#verifySecondaryIndexing()
 
+    const UpdateExpression = this.#getUpdateExpression(item)
+    const ExpressionAttributeNames = this.#getExpressionAttributeNames(item)
+    const ExpressionAttributeValues = this.#getExpressionAttributeValues(item)
     for (;;) {
       const counter =
         (await this.getLastPerItem(item)) ??
         this.#secondaryIncrementDefaultValue
       const nextCounter = counter + 1
+      // Update the indexing row
       const Update: UpdateCommandInput & { UpdateExpression: string } = {
         ConditionExpression: '#counter = :counter',
         ExpressionAttributeNames: {
@@ -302,12 +306,28 @@ export class DynamoDBAutoIncrement {
         UpdateExpression: 'SET #counter = :nextCounter',
       }
 
+      // Update the item
+      const ItemUpdate: UpdateCommandInput & { UpdateExpression: string } = {
+        ExpressionAttributeNames,
+        ExpressionAttributeValues: {
+          ...ExpressionAttributeValues,
+          ':nextCounter': nextCounter,
+        },
+        Key: {
+          [this.#secondaryIncrementItemPrimaryKey]:
+            item[this.#secondaryIncrementItemPrimaryKey],
+        },
+        UpdateExpression,
+        TableName: this.props.counterTableKey.tableName,
+      }
+
       if (this.props.dangerously) {
+        await this.props.doc.update(ItemUpdate)
         await this.props.doc.update(Update)
       } else {
         try {
           await this.props.doc.transactWrite({
-            TransactItems: [{ Update }],
+            TransactItems: [{ Update }, { Update: ItemUpdate }],
           })
         } catch (e) {
           if (e instanceof TransactionCanceledException) {
@@ -320,5 +340,35 @@ export class DynamoDBAutoIncrement {
 
       return nextCounter
     }
+  }
+
+  #getExpressionAttributeValues(item: Record<string, NativeAttributeValue>) {
+    const result: Record<string, NativeAttributeValue> = {}
+    Object.keys(item)
+      .filter((key) => key != this.#secondaryIncrementItemPrimaryKey)
+      .forEach((key) => {
+        result[`:${key}`] = item[key]
+      })
+    return result
+  }
+
+  #getExpressionAttributeNames(item: Record<string, NativeAttributeValue>) {
+    const result: Record<string, string> = {
+      '#counter': this.#secondaryIncrementAttributeName,
+    }
+    Object.keys(item)
+      .filter((key) => key != this.#secondaryIncrementItemPrimaryKey)
+      .forEach((key) => {
+        result[`#${key}`] = key
+      })
+    return result
+  }
+
+  #getUpdateExpression(item: Record<string, NativeAttributeValue>): string {
+    const keyArray = Object.keys(item)
+      .filter((key) => key != this.#secondaryIncrementItemPrimaryKey)
+      .map((key) => `#${key} = :${key}`)
+    keyArray.splice(0, 0, 'SET #counter = :nextCounter')
+    return keyArray.join(', ')
   }
 }

@@ -235,6 +235,14 @@ describe('DynamoDBFieldAutoIncrement', () => {
       widgetID: result,
       widgetName: 'better widget',
     })
+    const updatedWidget = (
+      await doc.get({
+        TableName: 'widgets',
+        Key: { widgetID: result },
+      })
+    ).Item
+    expect(updatedWidget).toBeDefined()
+    expect(updatedWidget?.widgetName).toBe('better widget')
     expect(updatedVersion).toBe(2)
   })
 
@@ -252,7 +260,7 @@ describe('DynamoDBFieldAutoIncrement', () => {
 
     const updatedVersion = async () => {
       await autoincrementPlusField.update({
-        // widgetID:result,
+        // widgetID:result, intentionally commented out to show case for missing ID
         widgetName: 'better widget',
       })
     }
@@ -290,7 +298,17 @@ describe('DynamoDBFieldAutoIncrement dangerously', () => {
     const updatedVersion = await autoincrementPlusFieldDangerously.update({
       widgetID: result,
       widgetName: 'better widget',
+      bonusProp: 123456,
     })
     expect(updatedVersion).toBe(2)
+    const updatedWidget = (
+      await doc.get({
+        TableName: 'widgets',
+        Key: { widgetID: result },
+      })
+    ).Item
+    expect(updatedWidget).toBeDefined()
+    expect(updatedWidget?.widgetName).toBe('better widget')
+    expect(updatedWidget?.bonusProp).toBe(123456)
   })
 })
