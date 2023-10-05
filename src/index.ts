@@ -71,7 +71,8 @@ export interface DynamoDBAutoIncrementProps {
  * })
  * ```
  * 
- * @example - Incrementing Partition key and initialize a
+ * @example - Incrementing Partition key and initialize a 
+ * secondary incrementing property 
  * ```
  * import { DynamoDB } from '@aws-sdk/client-dynamodb'
  * import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
@@ -84,16 +85,25 @@ export interface DynamoDBAutoIncrementProps {
  *   counterTableName: 'autoincrementHelper',
  *   counterTableKey: {
  *     tableName: 'widgets',
- *     tableItemPartitionKey: widgetID,
  *   },
  *   counterTableAttributeName: 'version',
  *   tableName: 'widgets',
  *   tableAttributeName: 'version',
  *   initialValue: 1,
+ *   secondaryIncrementAttributeName: 'version',
+ *   secondaryIncrementTableName: 'autoincrementField',
+ *   secondaryIncrementItemPrimaryKey: 'widgetID',
+ *   secondaryIncrementDefaultValue: 1,
  * })
  *
  * const lastWidgetID = await autoIncrement.put({
  *   widgetName: 'runcible spoon',
+ *   costDollars: 99.99,
+ * })
+ * 
+ * const lastWidgetVersion = await autoIncrement.update({
+ *   widgetID: lastWidgetID,
+ *   widgetName: 'spork',
  *   costDollars: 99.99,
  * })
  * ```
@@ -157,7 +167,7 @@ export class DynamoDBAutoIncrement {
     this.#verifySecondaryIndexing()
 
     const key = {
-      tableName: this.props.counterTableKey.tableName,
+      ...this.props.counterTableKey,
       tableItemPartitionKey:
         item[this.#secondaryIncrementItemPrimaryKey].toString(),
     }
@@ -246,7 +256,7 @@ export class DynamoDBAutoIncrement {
 
       if (this.#useSecondaryIndexing) {
         const secondaryIncrementItem = {
-          tableName: this.props.tableName,
+          ...this.props.counterTableKey,
           tableItemPartitionKey: nextCounter.toString(),
           [this.#secondaryIncrementAttributeName]:
             this.#secondaryIncrementDefaultValue,
@@ -298,7 +308,7 @@ export class DynamoDBAutoIncrement {
           ':nextCounter': nextCounter,
         },
         Key: {
-          tableName: this.props.counterTableKey.tableName,
+          ...this.props.counterTableKey,
           tableItemPartitionKey:
             item[this.#secondaryIncrementItemPrimaryKey].toString(),
         },
@@ -318,7 +328,7 @@ export class DynamoDBAutoIncrement {
             item[this.#secondaryIncrementItemPrimaryKey],
         },
         UpdateExpression,
-        TableName: this.props.counterTableKey.tableName,
+        TableName: this.props.tableName,
       }
 
       if (this.props.dangerously) {

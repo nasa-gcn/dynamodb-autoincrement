@@ -38,9 +38,6 @@ beforeAll(async () => {
 
   const fieldOptions = {
     ...options,
-    counterTableKey: {
-      tableName: 'widgets',
-    },
     secondaryIncrementAttributeName: 'version',
     secondaryIncrementTableName: 'autoincrementField',
     secondaryIncrementItemPrimaryKey: 'widgetID',
