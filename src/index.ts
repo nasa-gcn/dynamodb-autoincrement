@@ -1,9 +1,5 @@
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb'
-import type {
-  DynamoDBDocument,
-  PutCommandInput,
-  UpdateCommandInput,
-} from '@aws-sdk/lib-dynamodb'
+import type { DynamoDBDocument, PutCommandInput } from '@aws-sdk/lib-dynamodb'
 import type { NativeAttributeValue } from '@aws-sdk/util-dynamodb'
 
 export interface DynamoDBAutoIncrementProps {
@@ -78,56 +74,47 @@ export class DynamoDBAutoIncrement {
     for (;;) {
       const counter = await this.getLast()
 
-      let nextCounter: number
-      let Update: UpdateCommandInput & { UpdateExpression: string }
-
+      let nextCounter, ConditionExpression, ExpressionAttributeValues
       if (counter === undefined) {
         nextCounter = this.props.initialValue
-        Update = {
-          ConditionExpression: 'attribute_not_exists(#counter)',
-          ExpressionAttributeNames: {
-            '#counter': this.props.counterTableAttributeName,
-          },
-          ExpressionAttributeValues: {
-            ':nextCounter': nextCounter,
-          },
-          Key: this.props.counterTableKey,
-          TableName: this.props.counterTableName,
-          UpdateExpression: 'SET #counter = :nextCounter',
-        }
+        ConditionExpression = 'attribute_not_exists(#counter)'
       } else {
         nextCounter = counter + 1
-        Update = {
-          ConditionExpression: '#counter = :counter',
-          ExpressionAttributeNames: {
-            '#counter': this.props.counterTableAttributeName,
-          },
-          ExpressionAttributeValues: {
-            ':counter': counter,
-            ':nextCounter': nextCounter,
-          },
-          Key: this.props.counterTableKey,
-          TableName: this.props.counterTableName,
-          UpdateExpression: 'SET #counter = :nextCounter',
+        ConditionExpression = '#counter = :counter'
+        ExpressionAttributeValues = {
+          ':counter': counter,
         }
       }
 
-      const Put: PutCommandInput = {
-        ConditionExpression: 'attribute_not_exists(#counter)',
-        ExpressionAttributeNames: { '#counter': this.props.tableAttributeName },
-        Item: { [this.props.tableAttributeName]: nextCounter, ...item },
-        TableName: this.props.tableName,
-      }
+      const puts: PutCommandInput[] = [
+        {
+          ConditionExpression,
+          ExpressionAttributeNames: {
+            '#counter': this.props.counterTableAttributeName,
+          },
+          ExpressionAttributeValues,
+          Item: {
+            ...this.props.counterTableKey,
+            [this.props.counterTableAttributeName]: nextCounter,
+          },
+          TableName: this.props.counterTableName,
+        },
+        {
+          ConditionExpression: 'attribute_not_exists(#counter)',
+          ExpressionAttributeNames: {
+            '#counter': this.props.tableAttributeName,
+          },
+          Item: { [this.props.tableAttributeName]: nextCounter, ...item },
+          TableName: this.props.tableName,
+        },
+      ]
 
       if (this.props.dangerously) {
-        await Promise.all([
-          this.props.doc.update(Update),
-          this.props.doc.put(Put),
-        ])
+        await Promise.all(puts.map((obj) => this.props.doc.put(obj)))
       } else {
         try {
           await this.props.doc.transactWrite({
-            TransactItems: [{ Update }, { Put }],
+            TransactItems: puts.map((Put) => ({ Put })),
           })
         } catch (e) {
           if (e instanceof TransactionCanceledException) {
