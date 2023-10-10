@@ -115,7 +115,7 @@ export class DynamoDBAutoIncrement {
       const Put: PutCommandInput = {
         ConditionExpression: 'attribute_not_exists(#counter)',
         ExpressionAttributeNames: { '#counter': this.props.tableAttributeName },
-        Item: { [this.props.tableAttributeName]: nextCounter, ...item },
+        Item: { '#counter': nextCounter, ...item },
         TableName: this.props.tableName,
       }
 
