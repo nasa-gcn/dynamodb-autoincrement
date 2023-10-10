@@ -156,17 +156,6 @@ export class DynamoDBAutoIncrement {
         }
 
         if (this.props.dangerously) {
-          const temp = (
-            await this.props.doc.query({
-              KeyConditionExpression: 'widgetID = :widgetID',
-              ExpressionAttributeValues: {
-                ':widgetID': 1,
-              },
-              TableName: this.props.counterTableName,
-            })
-          ).Items
-          console.log(`History: ${JSON.stringify(temp, null, 2)}`)
-          console.log(Put)
           await Promise.all([
             this.props.doc.update(Update),
             this.props.doc.put(Put),
@@ -261,17 +250,6 @@ export class DynamoDBAutoIncrement {
       .join(' AND ')
   }
 
-  #getExpressionAttributeValues(item: Record<string, NativeAttributeValue>) {
-    const result: Record<string, NativeAttributeValue> = {}
-    Object.keys(item)
-      // Filter to remove the Partition Key from the ExpressionAttributes
-      .filter((x) => !Object.keys(this.props.counterTableKey).includes(x))
-      .forEach((key) => {
-        result[`:${key}`] = item[key]
-      })
-    return result
-  }
-
   #getKeyExpressionAttributeNames(item: Record<string, NativeAttributeValue>) {
     const result: Record<string, string> = {}
     Object.keys(item).forEach((key) => {
@@ -280,10 +258,21 @@ export class DynamoDBAutoIncrement {
     return result
   }
 
+  #getExpressionAttributeValues(item: Record<string, NativeAttributeValue>) {
+    const result: Record<string, NativeAttributeValue> = {}
+    Object.keys(item)
+      // Filter to remove the Partition Key from the ExpressionAttributeValues
+      .filter((x) => !Object.keys(this.props.counterTableKey).includes(x))
+      .forEach((key) => {
+        result[`:${key}`] = item[key]
+      })
+    return result
+  }
+
   #getExpressionAttributeNames(item: Record<string, NativeAttributeValue>) {
     const result: Record<string, string> = {}
     Object.keys(item)
-      // Filter to remove the Partition Key from the ExpressionAttributes
+      // Filter to remove the Partition Key from the ExpressionAttributeNames
       .filter((x) => !Object.keys(this.props.counterTableKey).includes(x))
       .forEach((key) => {
         result[`#${key}`] = key
