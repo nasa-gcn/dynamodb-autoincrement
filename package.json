@@ -27,7 +27,7 @@
     "test": "node setup-dynamodb-local.mjs && jest"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.188.0",
