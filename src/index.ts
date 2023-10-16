@@ -15,6 +15,9 @@ export interface DynamoDBAutoIncrementProps {
   /** the name of the attribute in the table in which to store the last value of the counter */
   counterTableAttributeName: string
 
+  /** whether to copy all of the attributes from the table to the counterTable */
+  counterTableCopyItem?: boolean
+
   /** the name of the table in which to store items */
   tableName: string
 
@@ -94,6 +97,7 @@ export class DynamoDBAutoIncrement {
           },
           ExpressionAttributeValues,
           Item: {
+            ...(this.props.counterTableCopyItem ? item : {}),
             ...this.props.counterTableKey,
             [this.props.counterTableAttributeName]: nextCounter,
           },
