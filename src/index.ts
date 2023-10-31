@@ -67,11 +67,12 @@ abstract class BaseDynamoDBAutoIncrement {
  * ```
  * import { DynamoDB } from '@aws-sdk/client-dynamodb'
  * import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
+ * import { DynamoDBAutoIncrement } from '@nasa-gcn/dynamodb-autoincrement'
  *
  * const client = new DynamoDB({})
  * const doc = DynamoDBDocument.from(client)
  *
- * const autoIncrement = dynamoDBAutoIncrement({
+ * const autoIncrement = DynamoDBAutoIncrement({
  *   doc,
  *   counterTableName: 'autoincrementHelper',
  *   counterTableKey: { autoincrementHelperForTable: 'widgets' },
@@ -81,7 +82,7 @@ abstract class BaseDynamoDBAutoIncrement {
  *   initialValue: 0,
  * })
  *
- * const lastWidgetID = await autoIncrement({
+ * const lastWidgetID = await autoIncrement.put({
  *   widgetName: 'runcible spoon',
  *   costDollars: 99.99,
  * })
