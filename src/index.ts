@@ -58,7 +58,7 @@ export interface DynamoDBAutoIncrementProps {
 export class DynamoDBAutoIncrement {
   constructor(readonly props: DynamoDBAutoIncrementProps) {}
 
-  async getLast(): Promise<number | undefined> {
+  async #getLast(): Promise<number | undefined> {
     return (
       (
         await this.props.doc.get({
@@ -72,7 +72,7 @@ export class DynamoDBAutoIncrement {
 
   async put(item: Record<string, NativeAttributeValue>) {
     for (;;) {
-      const counter = await this.getLast()
+      const counter = await this.#getLast()
 
       let nextCounter, ConditionExpression, ExpressionAttributeValues
       if (counter === undefined) {
