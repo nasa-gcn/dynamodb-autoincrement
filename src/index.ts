@@ -13,13 +13,10 @@ export interface DynamoDBAutoIncrementProps {
   counterTableKey: Record<string, NativeAttributeValue>
 
   /** the name of the attribute in the table in which to store the last value of the counter */
-  counterTableAttributeName: string
+  attributeName: string
 
   /** the name of the table in which to store items */
   tableName: string
-
-  /** the name of the attribute used as the auto-incrementing partition key in the table in which to store items */
-  tableAttributeName: string
 
   /** the initial value of the counter */
   initialValue: number
@@ -93,11 +90,11 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
     return (
       (
         await this.props.doc.get({
-          AttributesToGet: [this.props.counterTableAttributeName],
+          AttributesToGet: [this.props.attributeName],
           Key: this.props.counterTableKey,
           TableName: this.props.counterTableName,
         })
-      ).Item?.[this.props.counterTableAttributeName] ?? undefined
+      ).Item?.[this.props.attributeName] ?? undefined
     )
   }
 
@@ -120,21 +117,21 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
       {
         ConditionExpression,
         ExpressionAttributeNames: {
-          '#counter': this.props.counterTableAttributeName,
+          '#counter': this.props.attributeName,
         },
         ExpressionAttributeValues,
         Item: {
           ...this.props.counterTableKey,
-          [this.props.counterTableAttributeName]: nextCounter,
+          [this.props.attributeName]: nextCounter,
         },
         TableName: this.props.counterTableName,
       },
       {
         ConditionExpression: 'attribute_not_exists(#counter)',
         ExpressionAttributeNames: {
-          '#counter': this.props.tableAttributeName,
+          '#counter': this.props.attributeName,
         },
-        Item: { [this.props.tableAttributeName]: nextCounter, ...item },
+        Item: { [this.props.attributeName]: nextCounter, ...item },
         TableName: this.props.tableName,
       },
     ]
