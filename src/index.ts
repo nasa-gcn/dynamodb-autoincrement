@@ -28,6 +28,38 @@ export interface DynamoDBAutoIncrementProps {
   dangerously?: boolean
 }
 
+abstract class BaseDynamoDBAutoIncrement {
+  constructor(readonly props: DynamoDBAutoIncrementProps) {}
+
+  protected abstract next(
+    item: Record<string, NativeAttributeValue>
+  ): Promise<{ puts: PutCommandInput[]; nextCounter: number }>
+
+  async put(item: Record<string, NativeAttributeValue>) {
+    for (;;) {
+      const { puts, nextCounter } = await this.next(item)
+
+      if (this.props.dangerously) {
+        await Promise.all(puts.map((obj) => this.props.doc.put(obj)))
+      } else {
+        try {
+          await this.props.doc.transactWrite({
+            TransactItems: puts.map((Put) => ({ Put })),
+          })
+        } catch (e) {
+          if (e instanceof TransactionCanceledException) {
+            continue
+          } else {
+            throw e
+          }
+        }
+      }
+
+      return nextCounter
+    }
+  }
+}
+
 /**
  * Update an auto-incrementing partition key in DynamoDB.
  *
@@ -55,9 +87,7 @@ export interface DynamoDBAutoIncrementProps {
  * })
  * ```
  */
-export class DynamoDBAutoIncrement {
-  constructor(readonly props: DynamoDBAutoIncrementProps) {}
-
+export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
   async #getLast(): Promise<number | undefined> {
     return (
       (
@@ -70,62 +100,44 @@ export class DynamoDBAutoIncrement {
     )
   }
 
-  async put(item: Record<string, NativeAttributeValue>) {
-    for (;;) {
-      const counter = await this.#getLast()
+  protected async next(item: Record<string, NativeAttributeValue>) {
+    const counter = await this.#getLast()
 
-      let nextCounter, ConditionExpression, ExpressionAttributeValues
-      if (counter === undefined) {
-        nextCounter = this.props.initialValue
-        ConditionExpression = 'attribute_not_exists(#counter)'
-      } else {
-        nextCounter = counter + 1
-        ConditionExpression = '#counter = :counter'
-        ExpressionAttributeValues = {
-          ':counter': counter,
-        }
+    let nextCounter, ConditionExpression, ExpressionAttributeValues
+    if (counter === undefined) {
+      nextCounter = this.props.initialValue
+      ConditionExpression = 'attribute_not_exists(#counter)'
+    } else {
+      nextCounter = counter + 1
+      ConditionExpression = '#counter = :counter'
+      ExpressionAttributeValues = {
+        ':counter': counter,
       }
-
-      const puts: PutCommandInput[] = [
-        {
-          ConditionExpression,
-          ExpressionAttributeNames: {
-            '#counter': this.props.counterTableAttributeName,
-          },
-          ExpressionAttributeValues,
-          Item: {
-            ...this.props.counterTableKey,
-            [this.props.counterTableAttributeName]: nextCounter,
-          },
-          TableName: this.props.counterTableName,
-        },
-        {
-          ConditionExpression: 'attribute_not_exists(#counter)',
-          ExpressionAttributeNames: {
-            '#counter': this.props.tableAttributeName,
-          },
-          Item: { [this.props.tableAttributeName]: nextCounter, ...item },
-          TableName: this.props.tableName,
-        },
-      ]
-
-      if (this.props.dangerously) {
-        await Promise.all(puts.map((obj) => this.props.doc.put(obj)))
-      } else {
-        try {
-          await this.props.doc.transactWrite({
-            TransactItems: puts.map((Put) => ({ Put })),
-          })
-        } catch (e) {
-          if (e instanceof TransactionCanceledException) {
-            continue
-          } else {
-            throw e
-          }
-        }
-      }
-
-      return nextCounter
     }
+
+    const puts: PutCommandInput[] = [
+      {
+        ConditionExpression,
+        ExpressionAttributeNames: {
+          '#counter': this.props.counterTableAttributeName,
+        },
+        ExpressionAttributeValues,
+        Item: {
+          ...this.props.counterTableKey,
+          [this.props.counterTableAttributeName]: nextCounter,
+        },
+        TableName: this.props.counterTableName,
+      },
+      {
+        ConditionExpression: 'attribute_not_exists(#counter)',
+        ExpressionAttributeNames: {
+          '#counter': this.props.tableAttributeName,
+        },
+        Item: { [this.props.tableAttributeName]: nextCounter, ...item },
+        TableName: this.props.tableName,
+      },
+    ]
+
+    return { puts, nextCounter }
   }
 }
