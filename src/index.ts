@@ -131,10 +131,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
         ExpressionAttributeNames: {
           '#counter': this.props.attributeName,
         },
-        Item: {
-          [this.props.attributeName]: nextCounter,
-          ...item,
-        },
+        Item: { [this.props.attributeName]: nextCounter, ...item },
         TableName: this.props.tableName,
       },
     ]
@@ -144,7 +141,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
 }
 
 /**
- * Update a history table
+ * Update a history table with an auto-incrementing attribute value in DynamoDB
  *
  * @example
  * ```
