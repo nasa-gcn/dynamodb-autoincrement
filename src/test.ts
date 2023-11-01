@@ -26,9 +26,8 @@ beforeAll(async () => {
     doc,
     counterTableName: 'autoincrement',
     counterTableKey: { tableName: 'widgets' },
-    counterTableAttributeName: 'counter',
     tableName: 'widgets',
-    tableAttributeName: 'widgetID',
+    attributeName: 'widgetID',
     initialValue: 1,
   }
   autoincrement = new DynamoDBAutoIncrement(options)
@@ -69,7 +68,7 @@ describe('dynamoDBAutoIncrement', () => {
       } else {
         await doc.put({
           TableName: 'autoincrement',
-          Item: { tableName: 'widgets', counter: lastID },
+          Item: { tableName: 'widgets', widgetID: lastID },
         })
         nextID = lastID + 1
       }
@@ -89,7 +88,7 @@ describe('dynamoDBAutoIncrement', () => {
       expect(autoincrementItems).toEqual([
         {
           tableName: 'widgets',
-          counter: nextID,
+          widgetID: nextID,
         },
       ])
     }
