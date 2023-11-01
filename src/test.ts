@@ -99,6 +99,16 @@ describe('dynamoDBAutoIncrement', () => {
     const result = await Promise.all(ids.map(() => autoincrement.put({})))
     expect(result.sort()).toEqual(ids.sort())
   })
+
+  test('raises an error for unhandled DynamoDB exceptions', async () => {
+    await expect(
+      async () =>
+        await autoincrement.put({
+          widgetName: 'runcible spoon',
+          description: 'Hello world! '.repeat(32000),
+        })
+    ).rejects.toThrow('Item size has exceeded the maximum allowed size')
+  })
 })
 
 describe('dynamoDBAutoIncrement dangerously', () => {
