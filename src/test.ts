@@ -4,11 +4,11 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
 import type { DynamoDBAutoIncrementProps } from '.'
-import { DynamoDBAutoIncrement } from '.'
+import { DynamoDBAutoIncrement, DynamoDBHistoryAutoIncrement } from '.'
 
 let doc: DynamoDBDocument
 let autoincrement: DynamoDBAutoIncrement
-let autoincrementVersion: DynamoDBAutoIncrement
+let autoincrementVersion: DynamoDBHistoryAutoIncrement
 let autoincrementDangerously: DynamoDBAutoIncrement
 const N = 20
 
@@ -41,9 +41,8 @@ beforeAll(async () => {
     attributeName: 'version',
     tableName: 'widgets',
     initialValue: 1,
-    counterTableCopyItem: true,
   }
-  autoincrementVersion = new DynamoDBAutoIncrement(versioningOptions)
+  autoincrementVersion = new DynamoDBHistoryAutoIncrement(versioningOptions)
   autoincrementDangerously = new DynamoDBAutoIncrement({
     ...options,
     dangerously: true,
@@ -165,7 +164,7 @@ describe('dynamoDBAutoIncrement dangerously', () => {
 })
 
 describe('autoincrementVersion', () => {
-  test('increments version on put', async () => {
+  test('increments version on put when attributeName field is not defined on item', async () => {
     // Insert initial table item
     const widgetID = 1
     await doc.put({
@@ -180,6 +179,59 @@ describe('autoincrementVersion', () => {
     // Create new version
     const newVersion = await autoincrementVersion.put({
       widgetID,
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+    })
+    expect(newVersion).toBe(2)
+    const latestItem = (
+      await doc.get({
+        TableName: 'widgets',
+        Key: { widgetID },
+      })
+    ).Item
+    const latestVersionItem = (
+      await doc.get({
+        TableName: 'widgetHistory',
+        Key: { widgetID, version: newVersion },
+      })
+    ).Item
+
+    // Ensure the latest version in the couter table matches the version in the main table
+    expect(latestItem).toStrictEqual(latestVersionItem)
+
+    const historyItems = (
+      await doc.query({
+        TableName: 'widgetHistory',
+        KeyConditionExpression: 'widgetID = :widgetID',
+        ExpressionAttributeValues: {
+          ':widgetID': widgetID,
+        },
+      })
+    ).Items
+
+    expect(historyItems?.length).toBe(2)
+  })
+
+  test('increments version on put when attributeName field is defined on item', async () => {
+    // Insert initial table item
+    const widgetID = 1
+    const initialItem = {
+      widgetID,
+      name: 'Handy Widget',
+      description: 'Does something',
+      version: 1,
+    }
+    await doc.put({
+      TableName: 'widgets',
+      Item: initialItem,
+    })
+    await doc.put({
+      TableName: 'widgetHistory',
+      Item: initialItem,
+    })
+
+    // Create new version
+    const newVersion = await autoincrementVersion.put({
       name: 'Handy Widget',
       description: 'Does Everything!',
     })

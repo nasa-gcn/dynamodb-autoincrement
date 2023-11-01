@@ -23,9 +23,6 @@ export interface DynamoDBAutoIncrementProps {
 
   /** if true, then do not perform any locking (suitable only for testing) */
   dangerously?: boolean
-
-  /** whether to copy all of the attributes from the table to the counterTable */
-  counterTableCopyItem?: boolean
 }
 
 abstract class BaseDynamoDBAutoIncrement {
@@ -94,9 +91,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
         await this.props.doc.get({
           AttributesToGet: [this.props.attributeName],
           Key: this.props.counterTableKey,
-          TableName: this.props.counterTableCopyItem
-            ? this.props.tableName
-            : this.props.counterTableName,
+          TableName: this.props.counterTableName,
         })
       ).Item?.[this.props.attributeName] ?? undefined
     )
@@ -107,20 +102,8 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
 
     let nextCounter, ConditionExpression, ExpressionAttributeValues
 
-    const existingUntrackedEntry = this.props.counterTableCopyItem
-      ? (
-          await this.props.doc.get({
-            TableName: this.props.tableName,
-            Key: this.props.counterTableKey,
-          })
-        ).Item
-      : undefined
-
-    let untractedEntryPutCommandInput: PutCommandInput | undefined = undefined
     if (counter === undefined) {
-      nextCounter = existingUntrackedEntry
-        ? this.props.initialValue + 1
-        : this.props.initialValue
+      nextCounter = this.props.initialValue
       ConditionExpression = 'attribute_not_exists(#counter)'
     } else {
       nextCounter = counter + 1
@@ -128,6 +111,99 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
       ExpressionAttributeValues = {
         ':counter': counter,
       }
+    }
+
+    const puts: PutCommandInput[] = [
+      {
+        ConditionExpression,
+        ExpressionAttributeNames: {
+          '#counter': this.props.attributeName,
+        },
+        ExpressionAttributeValues,
+        Item: {
+          ...this.props.counterTableKey,
+          [this.props.attributeName]: nextCounter,
+        },
+        TableName: this.props.counterTableName,
+      },
+      {
+        ConditionExpression: 'attribute_not_exists(#counter)',
+        ExpressionAttributeNames: {
+          '#counter': this.props.attributeName,
+        },
+        Item: {
+          [this.props.attributeName]: nextCounter,
+          ...item,
+        },
+        TableName: this.props.tableName,
+      },
+    ]
+
+    return { puts, nextCounter }
+  }
+}
+
+/**
+ * Update a history table
+ *
+ * @example
+ * ```
+ * import { DynamoDB } from '@aws-sdk/client-dynamodb'
+ * import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
+ * import { DynamoDBHistoryAutoIncrement } from '@nasa-gcn/dynamodb-autoincrement'
+ *
+ * const client = new DynamoDB({})
+ * const doc = DynamoDBDocument.from(client)
+ *
+ * const autoIncrementHistory = DynamoDBHistoryAutoIncrement({
+ *   doc,
+ *   counterTableName: 'autoincrementHistoryTable',
+ *   counterTableKey: {
+ *     autoincrementItemID: 1
+ *   },
+ *   attributeName: 'version',
+ *   tableName: 'widgets',
+ *   initialValue: 1,
+ * })
+ *
+ * const latestVersionValue = await autoIncrementHistory.put({
+ *   widgetName: 'A new name for this item',
+ *   costDollars: 199.99,
+ * })
+ * ```
+ */
+export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
+  async #getLast(): Promise<number | undefined> {
+    return (
+      (
+        await this.props.doc.get({
+          AttributesToGet: [this.props.attributeName],
+          Key: this.props.counterTableKey,
+          TableName: this.props.tableName,
+        })
+      ).Item?.[this.props.attributeName] ?? undefined
+    )
+  }
+
+  protected async next(item: Record<string, NativeAttributeValue>) {
+    const counter = await this.#getLast()
+
+    let nextCounter
+
+    const existingUntrackedEntry = (
+      await this.props.doc.get({
+        TableName: this.props.tableName,
+        Key: this.props.counterTableKey,
+      })
+    ).Item
+
+    let untractedEntryPutCommandInput: PutCommandInput | undefined = undefined
+    if (counter === undefined) {
+      nextCounter = existingUntrackedEntry
+        ? this.props.initialValue + 1
+        : this.props.initialValue
+    } else {
+      nextCounter = counter + 1
     }
 
     if (counter === undefined && existingUntrackedEntry) {
@@ -140,43 +216,34 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
       }
     }
 
-    let counterTableItem = {
+    const Item = {
+      ...item,
       ...this.props.counterTableKey,
       [this.props.attributeName]: nextCounter,
     }
 
-    if (this.props.counterTableCopyItem) {
-      // Remove property from item if included in put accidentally
-      delete item[this.props.attributeName]
-      counterTableItem = {
-        ...counterTableItem,
-        ...item,
-      }
-    }
-
     const puts: PutCommandInput[] = [
-      {
-        ConditionExpression,
-        ExpressionAttributeNames: {
-          '#counter': this.props.attributeName,
-        },
-        ExpressionAttributeValues,
-        Item: counterTableItem,
-        TableName: this.props.counterTableName,
-      },
       {
         ConditionExpression: 'attribute_not_exists(#counter)',
         ExpressionAttributeNames: {
           '#counter': this.props.attributeName,
         },
-        Item: {
-          ...item,
-          [this.props.attributeName]: nextCounter,
+        Item,
+        TableName: this.props.counterTableName,
+      },
+      {
+        ConditionExpression:
+          'attribute_not_exists(#counter) OR #counter <> :counter',
+        ExpressionAttributeNames: {
+          '#counter': this.props.attributeName,
         },
+        ExpressionAttributeValues: {
+          ':counter': nextCounter,
+        },
+        Item,
         TableName: this.props.tableName,
       },
     ]
-
     if (untractedEntryPutCommandInput) puts.push(untractedEntryPutCommandInput)
 
     return { puts, nextCounter }
