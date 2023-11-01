@@ -15,9 +15,6 @@ export interface DynamoDBAutoIncrementProps {
   /** the name of the attribute in the table in which to store the last value of the counter */
   attributeName: string
 
-  /** whether to copy all of the attributes from the table to the counterTable */
-  counterTableCopyItem?: boolean
-
   /** the name of the table in which to store items */
   tableName: string
 
@@ -26,6 +23,9 @@ export interface DynamoDBAutoIncrementProps {
 
   /** if true, then do not perform any locking (suitable only for testing) */
   dangerously?: boolean
+
+  /** whether to copy all of the attributes from the table to the counterTable */
+  counterTableCopyItem?: boolean
 }
 
 abstract class BaseDynamoDBAutoIncrement {
@@ -38,7 +38,6 @@ abstract class BaseDynamoDBAutoIncrement {
   async put(item: Record<string, NativeAttributeValue>) {
     for (;;) {
       const { puts, nextCounter } = await this.next(item)
-
       if (this.props.dangerously) {
         await Promise.all(puts.map((obj) => this.props.doc.put(obj)))
       } else {
@@ -147,6 +146,8 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
     }
 
     if (this.props.counterTableCopyItem) {
+      // Remove property from item if included in put accidentally
+      delete item[this.props.attributeName]
       counterTableItem = {
         ...counterTableItem,
         ...item,
@@ -164,9 +165,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
         TableName: this.props.counterTableName,
       },
       {
-        ConditionExpression: this.props.counterTableCopyItem
-          ? 'attribute_exists(#counter)'
-          : 'attribute_not_exists(#counter)',
+        ConditionExpression: 'attribute_not_exists(#counter)',
         ExpressionAttributeNames: {
           '#counter': this.props.attributeName,
         },

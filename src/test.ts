@@ -38,9 +38,8 @@ beforeAll(async () => {
     counterTableKey: {
       widgetID: 1,
     },
-    counterTableAttributeName: 'version',
+    attributeName: 'version',
     tableName: 'widgets',
-    tableAttributeName: 'widgetID',
     initialValue: 1,
     counterTableCopyItem: true,
   }
@@ -166,7 +165,7 @@ describe('dynamoDBAutoIncrement dangerously', () => {
 })
 
 describe('autoincrementVersion', () => {
-  test('.getLast returns undefined when the version property', async () => {
+  test('increments version on put', async () => {
     // Insert initial table item
     const widgetID = 1
     await doc.put({
@@ -178,28 +177,13 @@ describe('autoincrementVersion', () => {
       },
     })
 
-    const version = await autoincrementVersion.getLast()
-    expect(version).toBeUndefined()
-  })
-
-  test('increments version on put', async () => {
-    // Insert initial table item
-    const widgetID = await autoincrement.put({
-      name: 'Handy Widget',
-      description: 'Does something',
-    })
-
     // Create new version
     const newVersion = await autoincrementVersion.put({
       widgetID,
       name: 'Handy Widget',
       description: 'Does Everything!',
     })
-
     expect(newVersion).toBe(2)
-    const latestVersion = await autoincrementVersion.getLast()
-    expect(latestVersion).toBe(2)
-
     const latestItem = (
       await doc.get({
         TableName: 'widgets',
