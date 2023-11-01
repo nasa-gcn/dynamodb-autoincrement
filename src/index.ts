@@ -101,7 +101,6 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
     const counter = await this.#getLast()
 
     let nextCounter, ConditionExpression, ExpressionAttributeValues
-
     if (counter === undefined) {
       nextCounter = this.props.initialValue
       ConditionExpression = 'attribute_not_exists(#counter)'
