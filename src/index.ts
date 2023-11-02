@@ -155,7 +155,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  *   doc,
  *   counterTableName: 'autoincrementHistoryTable',
  *   counterTableKey: {
- *     autoincrementItemID: 1
+ *     widgetID: 42
  *   },
  *   attributeName: 'version',
  *   tableName: 'widgets',
