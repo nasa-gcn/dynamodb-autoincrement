@@ -35,6 +35,7 @@ abstract class BaseDynamoDBAutoIncrement {
   async put(item: Record<string, NativeAttributeValue>) {
     for (;;) {
       const { puts, nextCounter } = await this.next(item)
+
       if (this.props.dangerously) {
         await Promise.all(puts.map((obj) => this.props.doc.put(obj)))
       } else {
@@ -179,9 +180,10 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
       })
     ).Item
 
-    const counter: number | undefined = existingUntrackedEntry?.[this.props.attributeName]
+    const counter: number | undefined =
+      existingUntrackedEntry?.[this.props.attributeName]
 
-    let untractedEntryPutCommandInput: PutCommandInput | undefined = undefined
+    let untrackedEntryPutCommandInput: PutCommandInput | undefined = undefined
     if (counter === undefined) {
       nextCounter = existingUntrackedEntry
         ? this.props.initialValue + 1
@@ -191,7 +193,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
     }
 
     if (counter === undefined && existingUntrackedEntry) {
-      untractedEntryPutCommandInput = {
+      untrackedEntryPutCommandInput = {
         TableName: this.props.counterTableName,
         Item: {
           ...existingUntrackedEntry,
@@ -228,7 +230,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
         TableName: this.props.tableName,
       },
     ]
-    if (untractedEntryPutCommandInput) puts.push(untractedEntryPutCommandInput)
+    if (untrackedEntryPutCommandInput) puts.push(untrackedEntryPutCommandInput)
 
     return { puts, nextCounter }
   }
