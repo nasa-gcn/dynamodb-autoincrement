@@ -34,12 +34,12 @@ beforeAll(async () => {
   autoincrement = new DynamoDBAutoIncrement(options)
   const versioningOptions: DynamoDBAutoIncrementProps = {
     doc,
-    counterTableName: 'widgetHistory',
+    counterTableName: 'widgets',
     counterTableKey: {
       widgetID: 1,
     },
     attributeName: 'version',
-    tableName: 'widgets',
+    tableName: 'widgetHistory',
     initialValue: 1,
   }
   autoincrementVersion = new DynamoDBHistoryAutoIncrement(versioningOptions)
@@ -178,11 +178,11 @@ describe('autoincrementVersion', () => {
 
     // Create new version
     const newVersion = await autoincrementVersion.put({
-      widgetID,
       name: 'Handy Widget',
       description: 'Does Everything!',
     })
     expect(newVersion).toBe(2)
+
     const latestItem = (
       await doc.get({
         TableName: 'widgets',
@@ -263,5 +263,44 @@ describe('autoincrementVersion', () => {
     ).Items
 
     expect(historyItems?.length).toBe(2)
+  })
+
+  test('increments version correctly if tracked field is included in the item on update', async () => {
+    // Insert initial table item
+    const widgetID = 1
+    const initialItem = {
+      widgetID,
+      name: 'Handy Widget',
+      description: 'Does something',
+      version: 1,
+    }
+    await doc.put({
+      TableName: 'widgets',
+      Item: initialItem,
+    })
+    await doc.put({
+      TableName: 'widgetHistory',
+      Item: initialItem,
+    })
+
+    // Create new version
+    const newVersion = await autoincrementVersion.put({
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+      version: 3,
+    })
+    expect(newVersion).toBe(2)
+    const latestItem = (
+      await doc.get({
+        TableName: 'widgets',
+        Key: { widgetID },
+      })
+    ).Item
+    expect(latestItem).toStrictEqual({
+      widgetID,
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+      version: 2,
+    })
   })
 })

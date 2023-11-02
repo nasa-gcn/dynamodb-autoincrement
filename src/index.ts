@@ -154,12 +154,12 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  *
  * const autoIncrementHistory = DynamoDBHistoryAutoIncrement({
  *   doc,
- *   counterTableName: 'widgetsHistory',
+ *   counterTableName: 'widgets', // The table storing the current item
  *   counterTableKey: {
- *     widgetID: 42
+ *     widgetID: 42 // ID of the item to be updated
  *   },
  *   attributeName: 'version',
- *   tableName: 'widgets',
+ *   tableName: 'widgetsHistory', // The table storing the history of items in
  *   initialValue: 1,
  * })
  *
@@ -173,30 +173,30 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
   protected async next(item: Record<string, NativeAttributeValue>) {
     let nextCounter
 
-    const existingUntrackedEntry = (
+    const existingEntry = (
       await this.props.doc.get({
-        TableName: this.props.tableName,
+        TableName: this.props.counterTableName,
         Key: this.props.counterTableKey,
       })
     ).Item
 
     const counter: number | undefined =
-      existingUntrackedEntry?.[this.props.attributeName]
+      existingEntry?.[this.props.attributeName]
 
     let untrackedEntryPutCommandInput: PutCommandInput | undefined = undefined
     if (counter === undefined) {
-      nextCounter = existingUntrackedEntry
+      nextCounter = existingEntry
         ? this.props.initialValue + 1
         : this.props.initialValue
     } else {
       nextCounter = counter + 1
     }
 
-    if (counter === undefined && existingUntrackedEntry) {
+    if (counter === undefined && existingEntry) {
       untrackedEntryPutCommandInput = {
-        TableName: this.props.counterTableName,
+        TableName: this.props.tableName,
         Item: {
-          ...existingUntrackedEntry,
+          ...existingEntry,
           [this.props.attributeName]: this.props.initialValue,
         },
       }
@@ -215,7 +215,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
           '#counter': this.props.attributeName,
         },
         Item,
-        TableName: this.props.counterTableName,
+        TableName: this.props.tableName,
       },
       {
         ConditionExpression:
@@ -227,7 +227,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
           ':counter': nextCounter,
         },
         Item,
-        TableName: this.props.tableName,
+        TableName: this.props.counterTableName,
       },
     ]
     if (untrackedEntryPutCommandInput) puts.push(untrackedEntryPutCommandInput)
