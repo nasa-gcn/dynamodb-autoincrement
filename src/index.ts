@@ -153,7 +153,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  *
  * const autoIncrementHistory = DynamoDBHistoryAutoIncrement({
  *   doc,
- *   counterTableName: 'autoincrementHistoryTable',
+ *   counterTableName: 'widgetsHistory',
  *   counterTableKey: {
  *     widgetID: 42
  *   },
