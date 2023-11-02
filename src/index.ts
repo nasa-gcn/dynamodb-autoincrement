@@ -169,21 +169,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  * ```
  */
 export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
-  async #getLast(): Promise<number | undefined> {
-    return (
-      (
-        await this.props.doc.get({
-          AttributesToGet: [this.props.attributeName],
-          Key: this.props.counterTableKey,
-          TableName: this.props.tableName,
-        })
-      ).Item?.[this.props.attributeName] ?? undefined
-    )
-  }
-
   protected async next(item: Record<string, NativeAttributeValue>) {
-    const counter = await this.#getLast()
-
     let nextCounter
 
     const existingUntrackedEntry = (
@@ -192,6 +178,8 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
         Key: this.props.counterTableKey,
       })
     ).Item
+
+    const counter: number | undefined = existingUntrackedEntry?.[this.props.attributeName]
 
     let untractedEntryPutCommandInput: PutCommandInput | undefined = undefined
     if (counter === undefined) {
