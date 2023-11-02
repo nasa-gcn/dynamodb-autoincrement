@@ -162,7 +162,7 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  *   initialValue: 1,
  * })
  *
- * const latestVersionValue = await autoIncrementHistory.put({
+ * const latestVersionNumber = await autoIncrementHistory.put({
  *   widgetName: 'A new name for this item',
  *   costDollars: 199.99,
  * })
