@@ -53,51 +53,26 @@ afterEach(async () => {
   // Delete all items of all tables
   await Promise.all(
     [
-      { TableName: 'autoincrement', KeyAttributeName: 'tableName' },
-      { TableName: 'widgets', KeyAttributeName: 'widgetID' },
-    ]
-      .map(
-        async ({ TableName, KeyAttributeName }) =>
-          await Promise.all(
-            ((await doc.scan({ TableName })).Items ?? []).map(
-              async ({ [KeyAttributeName]: KeyValue }) =>
-                await doc.delete({
-                  TableName,
-                  Key: { [KeyAttributeName]: KeyValue },
-                })
-            )
+      { TableName: 'autoincrement', keyAttributeNames: ['tableName'] },
+      { TableName: 'widgets', keyAttributeNames: ['widgetID'] },
+      {
+        TableName: 'widgetHistory',
+        keyAttributeNames: ['widgetID', 'version'],
+      },
+    ].map(
+      async ({ TableName, keyAttributeNames }) =>
+        await Promise.all(
+          ((await doc.scan({ TableName })).Items ?? []).map(
+            async (item) =>
+              await doc.delete({
+                TableName,
+                Key: Object.fromEntries(
+                  keyAttributeNames.map((key) => [key, item[key]])
+                ),
+              })
           )
-      )
-      .concat(
-        ...[
-          {
-            TableName: 'widgetHistory',
-            PartitionKeyAttributeName: 'widgetID',
-            SortKeyAttributeName: 'version',
-          },
-        ].map(
-          async ({
-            TableName,
-            PartitionKeyAttributeName,
-            SortKeyAttributeName,
-          }) =>
-            await Promise.all(
-              ((await doc.scan({ TableName })).Items ?? []).map(
-                async ({
-                  [PartitionKeyAttributeName]: KeyValue,
-                  [SortKeyAttributeName]: SortKeyValue,
-                }) =>
-                  await doc.delete({
-                    TableName,
-                    Key: {
-                      [PartitionKeyAttributeName]: KeyValue,
-                      [SortKeyAttributeName]: SortKeyValue,
-                    },
-                  })
-              )
-            )
         )
-      )
+    )
   )
 })
 
@@ -263,5 +238,21 @@ describe('autoincrementVersion', () => {
       description: 'Does Everything!',
       version: 2,
     })
+  })
+
+  test('correctly handles a large number of parallel puts', async () => {
+    const versions = Array.from(Array(N).keys()).map((i) => i + 2)
+    await doc.put({
+      TableName: 'widgets',
+      Item: {
+        widgetID: 1,
+        name: 'Handy Widget',
+        description: 'Does something',
+      },
+    })
+    const result = await Promise.all(
+      versions.map(() => autoincrementVersion.put({}))
+    )
+    expect(result.sort()).toEqual(versions.sort())
   })
 })
