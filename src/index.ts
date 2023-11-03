@@ -173,7 +173,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
   protected async next(item: Record<string, NativeAttributeValue>) {
     let nextCounter
 
-    const existingEntry = (
+    const existingItem = (
       await this.props.doc.get({
         TableName: this.props.counterTableName,
         Key: this.props.counterTableKey,
@@ -181,31 +181,18 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
     ).Item
 
     const counter: number | undefined =
-      existingEntry?.[this.props.attributeName]
+      existingItem?.[this.props.attributeName]
 
-    let untrackedEntryPutCommandInput: PutCommandInput | undefined = undefined
     if (counter === undefined) {
-      nextCounter = existingEntry
-        ? this.props.initialValue + 1
-        : this.props.initialValue
+      nextCounter = this.props.initialValue
+
+      // Existing item didn't have a version, so give it one
+      if (existingItem) {
+        existingItem[this.props.attributeName] = nextCounter
+        nextCounter += 1
+      }
     } else {
       nextCounter = counter + 1
-    }
-
-    if (counter === undefined && existingEntry) {
-      untrackedEntryPutCommandInput = {
-        TableName: this.props.tableName,
-        Item: {
-          ...existingEntry,
-          [this.props.attributeName]: this.props.initialValue,
-        },
-      }
-    }
-
-    const Item = {
-      ...item,
-      ...this.props.counterTableKey,
-      [this.props.attributeName]: nextCounter,
     }
 
     const puts: PutCommandInput[] = [
@@ -214,7 +201,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
         ExpressionAttributeNames: {
           '#counter': this.props.attributeName,
         },
-        Item,
+        Item: existingItem,
         TableName: this.props.tableName,
       },
       {
@@ -226,11 +213,14 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
         ExpressionAttributeValues: {
           ':counter': nextCounter,
         },
-        Item,
+        Item: {
+          ...item,
+          ...this.props.counterTableKey,
+          [this.props.attributeName]: nextCounter,
+        },
         TableName: this.props.counterTableName,
       },
     ]
-    if (untrackedEntryPutCommandInput) puts.push(untrackedEntryPutCommandInput)
 
     return { puts, nextCounter }
   }
