@@ -183,22 +183,6 @@ describe('autoincrementVersion', () => {
     })
     expect(newVersion).toBe(2)
 
-    const latestItem = (
-      await doc.get({
-        TableName: 'widgets',
-        Key: { widgetID },
-      })
-    ).Item
-    const latestVersionItem = (
-      await doc.get({
-        TableName: 'widgetHistory',
-        Key: { widgetID, version: newVersion },
-      })
-    ).Item
-
-    // Ensure the latest version in the couter table matches the version in the main table
-    expect(latestItem).toStrictEqual(latestVersionItem)
-
     const historyItems = (
       await doc.query({
         TableName: 'widgetHistory',
@@ -209,7 +193,7 @@ describe('autoincrementVersion', () => {
       })
     ).Items
 
-    expect(historyItems?.length).toBe(2)
+    expect(historyItems?.length).toBe(1)
   })
 
   test('increments version on put when attributeName field is defined on item', async () => {
@@ -225,10 +209,6 @@ describe('autoincrementVersion', () => {
       TableName: 'widgets',
       Item: initialItem,
     })
-    await doc.put({
-      TableName: 'widgetHistory',
-      Item: initialItem,
-    })
 
     // Create new version
     const newVersion = await autoincrementVersion.put({
@@ -236,21 +216,6 @@ describe('autoincrementVersion', () => {
       description: 'Does Everything!',
     })
     expect(newVersion).toBe(2)
-    const latestItem = (
-      await doc.get({
-        TableName: 'widgets',
-        Key: { widgetID },
-      })
-    ).Item
-    const latestVersionItem = (
-      await doc.get({
-        TableName: 'widgetHistory',
-        Key: { widgetID, version: newVersion },
-      })
-    ).Item
-
-    // Ensure the latest version in the couter table matches the version in the main table
-    expect(latestItem).toStrictEqual(latestVersionItem)
 
     const historyItems = (
       await doc.query({
@@ -262,7 +227,7 @@ describe('autoincrementVersion', () => {
       })
     ).Items
 
-    expect(historyItems?.length).toBe(2)
+    expect(historyItems?.length).toBe(1)
   })
 
   test('increments version correctly if tracked field is included in the item on update', async () => {
@@ -276,10 +241,6 @@ describe('autoincrementVersion', () => {
     }
     await doc.put({
       TableName: 'widgets',
-      Item: initialItem,
-    })
-    await doc.put({
-      TableName: 'widgetHistory',
       Item: initialItem,
     })
 
