@@ -205,12 +205,12 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
       },
       {
         ConditionExpression:
-          'attribute_not_exists(#counter) OR #counter <> :counter',
+          'attribute_not_exists(#counter) OR #counter = :counter',
         ExpressionAttributeNames: {
           '#counter': this.props.attributeName,
         },
         ExpressionAttributeValues: {
-          ':counter': nextCounter,
+          ':counter': counter,
         },
         Item: {
           ...item,
