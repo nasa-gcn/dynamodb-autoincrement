@@ -187,7 +187,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
 
       // Existing item didn't have a version, so give it one
       if (existingItem) {
-        existingItem[this.props.attributeName] = nextCounter
+        existingItem[this.props.attributeName] = counter = nextCounter
         nextCounter += 1
       }
     } else {
