@@ -180,7 +180,7 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
       })
     ).Item
 
-    const counter: number | undefined = existingItem?.[this.props.attributeName]
+    let counter: number | undefined = existingItem?.[this.props.attributeName]
 
     if (counter === undefined) {
       nextCounter = this.props.initialValue
