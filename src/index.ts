@@ -86,8 +86,8 @@ abstract class BaseDynamoDBAutoIncrement {
  * ```
  */
 export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
-  async #getLast(): Promise<number | undefined> {
-    return (
+  protected async next(item: Record<string, NativeAttributeValue>) {
+    const counter: number | undefined =
       (
         await this.props.doc.get({
           AttributesToGet: [this.props.attributeName],
@@ -95,11 +95,6 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
           TableName: this.props.counterTableName,
         })
       ).Item?.[this.props.attributeName] ?? undefined
-    )
-  }
-
-  protected async next(item: Record<string, NativeAttributeValue>) {
-    const counter = await this.#getLast()
 
     let nextCounter, ConditionExpression, ExpressionAttributeValues
     if (counter === undefined) {
