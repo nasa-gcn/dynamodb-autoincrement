@@ -4,10 +4,11 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
 import type { DynamoDBAutoIncrementProps } from '.'
-import { DynamoDBAutoIncrement } from '.'
+import { DynamoDBAutoIncrement, DynamoDBHistoryAutoIncrement } from '.'
 
 let doc: DynamoDBDocument
 let autoincrement: DynamoDBAutoIncrement
+let autoincrementVersion: DynamoDBHistoryAutoIncrement
 let autoincrementDangerously: DynamoDBAutoIncrement
 const N = 20
 
@@ -31,6 +32,17 @@ beforeAll(async () => {
     initialValue: 1,
   }
   autoincrement = new DynamoDBAutoIncrement(options)
+  const versioningOptions: DynamoDBAutoIncrementProps = {
+    doc,
+    counterTableName: 'widgets',
+    counterTableKey: {
+      widgetID: 1,
+    },
+    attributeName: 'version',
+    tableName: 'widgetHistory',
+    initialValue: 1,
+  }
+  autoincrementVersion = new DynamoDBHistoryAutoIncrement(versioningOptions)
   autoincrementDangerously = new DynamoDBAutoIncrement({
     ...options,
     dangerously: true,
@@ -41,16 +53,22 @@ afterEach(async () => {
   // Delete all items of all tables
   await Promise.all(
     [
-      { TableName: 'autoincrement', KeyAttributeName: 'tableName' },
-      { TableName: 'widgets', KeyAttributeName: 'widgetID' },
+      { TableName: 'autoincrement', keyAttributeNames: ['tableName'] },
+      { TableName: 'widgets', keyAttributeNames: ['widgetID'] },
+      {
+        TableName: 'widgetHistory',
+        keyAttributeNames: ['widgetID', 'version'],
+      },
     ].map(
-      async ({ TableName, KeyAttributeName }) =>
+      async ({ TableName, keyAttributeNames }) =>
         await Promise.all(
           ((await doc.scan({ TableName })).Items ?? []).map(
-            async ({ [KeyAttributeName]: KeyValue }) =>
+            async (item) =>
               await doc.delete({
                 TableName,
-                Key: { [KeyAttributeName]: KeyValue },
+                Key: Object.fromEntries(
+                  keyAttributeNames.map((key) => [key, item[key]])
+                ),
               })
           )
         )
@@ -127,5 +145,124 @@ describe('dynamoDBAutoIncrement dangerously', () => {
       async () =>
         await Promise.all(ids.map(() => autoincrementDangerously.put({})))
     ).rejects.toThrow(ConditionalCheckFailedException)
+  })
+})
+
+describe('autoincrementVersion', () => {
+  test('increments version on put when attributeName field is not defined on item', async () => {
+    // Insert initial table item
+    const widgetID = 1
+    await doc.put({
+      TableName: 'widgets',
+      Item: {
+        widgetID,
+        name: 'Handy Widget',
+        description: 'Does something',
+      },
+    })
+
+    // Create new version
+    const newVersion = await autoincrementVersion.put({
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+    })
+    expect(newVersion).toBe(2)
+
+    const historyItems = (
+      await doc.query({
+        TableName: 'widgetHistory',
+        KeyConditionExpression: 'widgetID = :widgetID',
+        ExpressionAttributeValues: {
+          ':widgetID': widgetID,
+        },
+      })
+    ).Items
+
+    expect(historyItems?.length).toBe(1)
+  })
+
+  test('increments version on put when attributeName field is defined on item', async () => {
+    // Insert initial table item
+    const widgetID = 1
+    const initialItem = {
+      widgetID,
+      name: 'Handy Widget',
+      description: 'Does something',
+      version: 1,
+    }
+    await doc.put({
+      TableName: 'widgets',
+      Item: initialItem,
+    })
+
+    // Create new version
+    const newVersion = await autoincrementVersion.put({
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+    })
+    expect(newVersion).toBe(2)
+
+    const historyItems = (
+      await doc.query({
+        TableName: 'widgetHistory',
+        KeyConditionExpression: 'widgetID = :widgetID',
+        ExpressionAttributeValues: {
+          ':widgetID': widgetID,
+        },
+      })
+    ).Items
+
+    expect(historyItems?.length).toBe(1)
+  })
+
+  test('increments version correctly if tracked field is included in the item on update', async () => {
+    // Insert initial table item
+    const widgetID = 1
+    const initialItem = {
+      widgetID,
+      name: 'Handy Widget',
+      description: 'Does something',
+      version: 1,
+    }
+    await doc.put({
+      TableName: 'widgets',
+      Item: initialItem,
+    })
+
+    // Create new version
+    const newVersion = await autoincrementVersion.put({
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+      version: 3,
+    })
+    expect(newVersion).toBe(2)
+    const latestItem = (
+      await doc.get({
+        TableName: 'widgets',
+        Key: { widgetID },
+      })
+    ).Item
+    expect(latestItem).toStrictEqual({
+      widgetID,
+      name: 'Handy Widget',
+      description: 'Does Everything!',
+      version: 2,
+    })
+  })
+
+  test('correctly handles a large number of parallel puts', async () => {
+    const versions = Array.from(Array(N).keys()).map((i) => i + 2)
+    await doc.put({
+      TableName: 'widgets',
+      Item: {
+        widgetID: 1,
+        name: 'Handy Widget',
+        description: 'Does something',
+      },
+    })
+    const result = await Promise.all(
+      versions.map(() => autoincrementVersion.put({}))
+    )
+    expect(result.sort()).toEqual(versions.sort())
   })
 })

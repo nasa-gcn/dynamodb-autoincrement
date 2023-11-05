@@ -139,3 +139,88 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
     return { puts, nextCounter }
   }
 }
+
+/**
+ * Update a history table with an auto-incrementing attribute value in DynamoDB
+ *
+ * @example
+ * ```
+ * import { DynamoDB } from '@aws-sdk/client-dynamodb'
+ * import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
+ * import { DynamoDBHistoryAutoIncrement } from '@nasa-gcn/dynamodb-autoincrement'
+ *
+ * const client = new DynamoDB({})
+ * const doc = DynamoDBDocument.from(client)
+ *
+ * const autoIncrementHistory = DynamoDBHistoryAutoIncrement({
+ *   doc,
+ *   counterTableName: 'widgets', // The table storing the current item
+ *   counterTableKey: {
+ *     widgetID: 42 // ID of the item to be updated
+ *   },
+ *   attributeName: 'version',
+ *   tableName: 'widgetsHistory', // The table storing the history of items in
+ *   initialValue: 1,
+ * })
+ *
+ * const latestVersionNumber = await autoIncrementHistory.put({
+ *   widgetName: 'A new name for this item',
+ *   costDollars: 199.99,
+ * })
+ * ```
+ */
+export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
+  protected async next(item: Record<string, NativeAttributeValue>) {
+    let nextCounter
+
+    const existingItem = (
+      await this.props.doc.get({
+        TableName: this.props.counterTableName,
+        Key: this.props.counterTableKey,
+      })
+    ).Item
+
+    let counter: number | undefined = existingItem?.[this.props.attributeName]
+
+    if (counter === undefined) {
+      nextCounter = this.props.initialValue
+
+      // Existing item didn't have a version, so give it one
+      if (existingItem) {
+        existingItem[this.props.attributeName] = counter = nextCounter
+        nextCounter += 1
+      }
+    } else {
+      nextCounter = counter + 1
+    }
+
+    const puts: PutCommandInput[] = [
+      {
+        ConditionExpression: 'attribute_not_exists(#counter)',
+        ExpressionAttributeNames: {
+          '#counter': this.props.attributeName,
+        },
+        Item: existingItem,
+        TableName: this.props.tableName,
+      },
+      {
+        ConditionExpression:
+          'attribute_not_exists(#counter) OR #counter = :counter',
+        ExpressionAttributeNames: {
+          '#counter': this.props.attributeName,
+        },
+        ExpressionAttributeValues: {
+          ':counter': counter,
+        },
+        Item: {
+          ...item,
+          ...this.props.counterTableKey,
+          [this.props.attributeName]: nextCounter,
+        },
+        TableName: this.props.counterTableName,
+      },
+    ]
+
+    return { puts, nextCounter }
+  }
+}

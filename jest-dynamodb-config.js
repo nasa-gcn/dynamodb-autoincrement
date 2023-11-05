@@ -17,6 +17,18 @@ const config = {
       KeySchema: [{ AttributeName: 'widgetID', KeyType: 'HASH' }],
       TableName: 'widgets',
     },
+    {
+      BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: [
+        { AttributeName: 'widgetID', AttributeType: 'N' },
+        { AttributeName: 'version', AttributeType: 'N' },
+      ],
+      KeySchema: [
+        { AttributeName: 'widgetID', KeyType: 'HASH' },
+        { AttributeName: 'version', KeyType: 'RANGE' },
+      ],
+      TableName: 'widgetHistory',
+    },
   ],
   installerConfig: {
     installPath: './dynamodb_local_latest',
