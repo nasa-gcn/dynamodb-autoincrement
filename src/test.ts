@@ -1,14 +1,16 @@
 import {
   ConditionalCheckFailedException,
+  DescribeTableCommand,
   DynamoDBClient,
 } from '@aws-sdk/client-dynamodb'
 import {
-  DeleteCommand,
+  BatchWriteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,
   ScanCommand,
+  paginateScan,
 } from '@aws-sdk/lib-dynamodb'
 import type { DynamoDBAutoIncrementProps } from '.'
 import { DynamoDBAutoIncrement, DynamoDBHistoryAutoIncrement } from '.'
@@ -56,32 +58,35 @@ beforeAll(async () => {
   })
 })
 
+function defined<T>(item: T | undefined): item is T {
+  return item !== undefined
+}
+
+async function deleteAll(TableName: string) {
+  const keyAttributeNames = (
+    await doc.send(new DescribeTableCommand({ TableName }))
+  ).Table?.KeySchema?.map(({ AttributeName }) => AttributeName).filter(defined)
+
+  const pages = paginateScan(
+    { client: doc, pageSize: 25 },
+    { TableName, AttributesToGet: keyAttributeNames }
+  )
+  for await (const { Items } of pages) {
+    if (Items?.length)
+      await doc.send(
+        new BatchWriteCommand({
+          RequestItems: {
+            [TableName]: Items.map((Key) => ({ DeleteRequest: { Key } })),
+          },
+        })
+      )
+  }
+}
+
 afterEach(async () => {
   // Delete all items of all tables
   await Promise.all(
-    [
-      { TableName: 'autoincrement', keyAttributeNames: ['tableName'] },
-      { TableName: 'widgets', keyAttributeNames: ['widgetID'] },
-      {
-        TableName: 'widgetHistory',
-        keyAttributeNames: ['widgetID', 'version'],
-      },
-    ].map(
-      async ({ TableName, keyAttributeNames }) =>
-        await Promise.all(
-          ((await doc.send(new ScanCommand({ TableName }))).Items ?? []).map(
-            async (item) =>
-              await doc.send(
-                new DeleteCommand({
-                  TableName,
-                  Key: Object.fromEntries(
-                    keyAttributeNames.map((key) => [key, item[key]])
-                  ),
-                })
-              )
-          )
-        )
-    )
+    ['autoincrement', 'widgets', 'widgetHistory'].map(deleteAll)
   )
 })
 
