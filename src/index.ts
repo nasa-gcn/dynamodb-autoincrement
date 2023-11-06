@@ -1,10 +1,16 @@
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb'
-import type { DynamoDBDocument, PutCommandInput } from '@aws-sdk/lib-dynamodb'
+import {
+  TransactWriteCommand,
+  type DynamoDBDocumentClient,
+  type PutCommandInput,
+  PutCommand,
+  GetCommand,
+} from '@aws-sdk/lib-dynamodb'
 import type { NativeAttributeValue } from '@aws-sdk/util-dynamodb'
 
 export interface DynamoDBAutoIncrementProps {
   /** a DynamoDB document client instance */
-  doc: DynamoDBDocument
+  doc: DynamoDBDocumentClient
 
   /** the name of the table in which to store the last value of the counter */
   counterTableName: string
@@ -37,12 +43,16 @@ abstract class BaseDynamoDBAutoIncrement {
       const { puts, nextCounter } = await this.next(item)
 
       if (this.props.dangerously) {
-        await Promise.all(puts.map((obj) => this.props.doc.put(obj)))
+        await Promise.all(
+          puts.map((obj) => this.props.doc.send(new PutCommand(obj)))
+        )
       } else {
         try {
-          await this.props.doc.transactWrite({
-            TransactItems: puts.map((Put) => ({ Put })),
-          })
+          await this.props.doc.send(
+            new TransactWriteCommand({
+              TransactItems: puts.map((Put) => ({ Put })),
+            })
+          )
         } catch (e) {
           if (e instanceof TransactionCanceledException) {
             continue
@@ -62,12 +72,12 @@ abstract class BaseDynamoDBAutoIncrement {
  *
  * @example
  * ```
- * import { DynamoDB } from '@aws-sdk/client-dynamodb'
- * import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
+ * import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+ * import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
  * import { DynamoDBAutoIncrement } from '@nasa-gcn/dynamodb-autoincrement'
  *
- * const client = new DynamoDB({})
- * const doc = DynamoDBDocument.from(client)
+ * const client = new DynamoDBClient({})
+ * const doc = DynamoDBDocumentClient.from(client)
  *
  * const autoIncrement = DynamoDBAutoIncrement({
  *   doc,
@@ -89,11 +99,13 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
   protected async next(item: Record<string, NativeAttributeValue>) {
     const counter: number | undefined =
       (
-        await this.props.doc.get({
-          AttributesToGet: [this.props.attributeName],
-          Key: this.props.counterTableKey,
-          TableName: this.props.counterTableName,
-        })
+        await this.props.doc.send(
+          new GetCommand({
+            AttributesToGet: [this.props.attributeName],
+            Key: this.props.counterTableKey,
+            TableName: this.props.counterTableName,
+          })
+        )
       ).Item?.[this.props.attributeName] ?? undefined
 
     let nextCounter, ConditionExpression, ExpressionAttributeValues
@@ -140,12 +152,12 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  *
  * @example
  * ```
- * import { DynamoDB } from '@aws-sdk/client-dynamodb'
- * import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
+ * import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+ * import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
  * import { DynamoDBHistoryAutoIncrement } from '@nasa-gcn/dynamodb-autoincrement'
  *
- * const client = new DynamoDB({})
- * const doc = DynamoDBDocument.from(client)
+ * const client = new DynamoDBClient({})
+ * const doc = DynamoDBDocumentClient.from(client)
  *
  * const autoIncrementHistory = DynamoDBHistoryAutoIncrement({
  *   doc,
@@ -169,10 +181,12 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
     let nextCounter
 
     const existingItem = (
-      await this.props.doc.get({
-        TableName: this.props.counterTableName,
-        Key: this.props.counterTableKey,
-      })
+      await this.props.doc.send(
+        new GetCommand({
+          TableName: this.props.counterTableName,
+          Key: this.props.counterTableKey,
+        })
+      )
     ).Item
 
     let counter: number | undefined = existingItem?.[this.props.attributeName]
