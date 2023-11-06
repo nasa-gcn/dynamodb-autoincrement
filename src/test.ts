@@ -1,20 +1,27 @@
 import {
   ConditionalCheckFailedException,
-  DynamoDB,
+  DynamoDBClient,
 } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb'
+import {
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+} from '@aws-sdk/lib-dynamodb'
 import type { DynamoDBAutoIncrementProps } from '.'
 import { DynamoDBAutoIncrement, DynamoDBHistoryAutoIncrement } from '.'
 
-let doc: DynamoDBDocument
+let doc: DynamoDBDocumentClient
 let autoincrement: DynamoDBAutoIncrement
 let autoincrementVersion: DynamoDBHistoryAutoIncrement
 let autoincrementDangerously: DynamoDBAutoIncrement
 const N = 20
 
 beforeAll(async () => {
-  doc = DynamoDBDocument.from(
-    new DynamoDB({
+  doc = DynamoDBDocumentClient.from(
+    new DynamoDBClient({
       credentials: {
         accessKeyId: 'fakeMyKeyId',
         secretAccessKey: 'fakeSecretAccessKey',
@@ -62,14 +69,16 @@ afterEach(async () => {
     ].map(
       async ({ TableName, keyAttributeNames }) =>
         await Promise.all(
-          ((await doc.scan({ TableName })).Items ?? []).map(
+          ((await doc.send(new ScanCommand({ TableName }))).Items ?? []).map(
             async (item) =>
-              await doc.delete({
-                TableName,
-                Key: Object.fromEntries(
-                  keyAttributeNames.map((key) => [key, item[key]])
-                ),
-              })
+              await doc.send(
+                new DeleteCommand({
+                  TableName,
+                  Key: Object.fromEntries(
+                    keyAttributeNames.map((key) => [key, item[key]])
+                  ),
+                })
+              )
           )
         )
     )
@@ -84,10 +93,12 @@ describe('dynamoDBAutoIncrement', () => {
       if (lastID === undefined) {
         nextID = 1
       } else {
-        await doc.put({
-          TableName: 'autoincrement',
-          Item: { tableName: 'widgets', widgetID: lastID },
-        })
+        await doc.send(
+          new PutCommand({
+            TableName: 'autoincrement',
+            Item: { tableName: 'widgets', widgetID: lastID },
+          })
+        )
         nextID = lastID + 1
       }
 
@@ -96,7 +107,8 @@ describe('dynamoDBAutoIncrement', () => {
 
       const [widgetItems, autoincrementItems] = await Promise.all(
         ['widgets', 'autoincrement'].map(
-          async (TableName) => (await doc.scan({ TableName })).Items
+          async (TableName) =>
+            (await doc.send(new ScanCommand({ TableName }))).Items
         )
       )
 
@@ -152,14 +164,16 @@ describe('autoincrementVersion', () => {
   test('increments version on put when attributeName field is not defined on item', async () => {
     // Insert initial table item
     const widgetID = 1
-    await doc.put({
-      TableName: 'widgets',
-      Item: {
-        widgetID,
-        name: 'Handy Widget',
-        description: 'Does something',
-      },
-    })
+    await doc.send(
+      new PutCommand({
+        TableName: 'widgets',
+        Item: {
+          widgetID,
+          name: 'Handy Widget',
+          description: 'Does something',
+        },
+      })
+    )
 
     // Create new version
     const newVersion = await autoincrementVersion.put({
@@ -169,13 +183,15 @@ describe('autoincrementVersion', () => {
     expect(newVersion).toBe(2)
 
     const historyItems = (
-      await doc.query({
-        TableName: 'widgetHistory',
-        KeyConditionExpression: 'widgetID = :widgetID',
-        ExpressionAttributeValues: {
-          ':widgetID': widgetID,
-        },
-      })
+      await doc.send(
+        new QueryCommand({
+          TableName: 'widgetHistory',
+          KeyConditionExpression: 'widgetID = :widgetID',
+          ExpressionAttributeValues: {
+            ':widgetID': widgetID,
+          },
+        })
+      )
     ).Items
 
     expect(historyItems?.length).toBe(1)
@@ -190,10 +206,12 @@ describe('autoincrementVersion', () => {
       description: 'Does something',
       version: 1,
     }
-    await doc.put({
-      TableName: 'widgets',
-      Item: initialItem,
-    })
+    await doc.send(
+      new PutCommand({
+        TableName: 'widgets',
+        Item: initialItem,
+      })
+    )
 
     // Create new version
     const newVersion = await autoincrementVersion.put({
@@ -203,13 +221,15 @@ describe('autoincrementVersion', () => {
     expect(newVersion).toBe(2)
 
     const historyItems = (
-      await doc.query({
-        TableName: 'widgetHistory',
-        KeyConditionExpression: 'widgetID = :widgetID',
-        ExpressionAttributeValues: {
-          ':widgetID': widgetID,
-        },
-      })
+      await doc.send(
+        new QueryCommand({
+          TableName: 'widgetHistory',
+          KeyConditionExpression: 'widgetID = :widgetID',
+          ExpressionAttributeValues: {
+            ':widgetID': widgetID,
+          },
+        })
+      )
     ).Items
 
     expect(historyItems?.length).toBe(1)
@@ -224,10 +244,12 @@ describe('autoincrementVersion', () => {
       description: 'Does something',
       version: 1,
     }
-    await doc.put({
-      TableName: 'widgets',
-      Item: initialItem,
-    })
+    await doc.send(
+      new PutCommand({
+        TableName: 'widgets',
+        Item: initialItem,
+      })
+    )
 
     // Create new version
     const newVersion = await autoincrementVersion.put({
@@ -237,10 +259,12 @@ describe('autoincrementVersion', () => {
     })
     expect(newVersion).toBe(2)
     const latestItem = (
-      await doc.get({
-        TableName: 'widgets',
-        Key: { widgetID },
-      })
+      await doc.send(
+        new GetCommand({
+          TableName: 'widgets',
+          Key: { widgetID },
+        })
+      )
     ).Item
     expect(latestItem).toStrictEqual({
       widgetID,
@@ -252,14 +276,16 @@ describe('autoincrementVersion', () => {
 
   test('correctly handles a large number of parallel puts', async () => {
     const versions = Array.from(Array(N).keys()).map((i) => i + 2)
-    await doc.put({
-      TableName: 'widgets',
-      Item: {
-        widgetID: 1,
-        name: 'Handy Widget',
-        description: 'Does something',
-      },
-    })
+    await doc.send(
+      new PutCommand({
+        TableName: 'widgets',
+        Item: {
+          widgetID: 1,
+          name: 'Handy Widget',
+          description: 'Does something',
+        },
+      })
+    )
     const result = await Promise.all(
       versions.map(() => autoincrementVersion.put({}))
     )
