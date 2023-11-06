@@ -198,7 +198,10 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
         Item: existingItem,
         TableName: this.props.tableName,
       },
-      {
+    ]
+
+    if (existingItem) {
+      puts.push({
         ConditionExpression:
           'attribute_not_exists(#counter) OR #counter = :counter',
         ExpressionAttributeNames: {
@@ -213,8 +216,8 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
           [this.props.attributeName]: nextCounter,
         },
         TableName: this.props.counterTableName,
-      },
-    ]
+      })
+    }
 
     return { puts, nextCounter }
   }
