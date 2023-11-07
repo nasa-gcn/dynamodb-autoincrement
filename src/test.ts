@@ -156,9 +156,20 @@ describe('dynamoDBAutoIncrement', () => {
 
     test('fails on a large number of parallel puts', async () => {
       const ids = Array.from(Array(N).keys()).map((i) => i + 1)
-      await expect(
-        async () => await Promise.all(ids.map(() => autoincrement.put({})))
-      ).rejects.toThrow(ConditionalCheckFailedException)
+      // Use Promise.allSettled instead of Promise.all because we _expect_
+      // some of these promises to fail, and Promise.all's fail-fast behavior
+      // results in race conditions with test cleanup because promises _other_
+      // than the first one to fail could finish after the test itself returns
+      const results = await Promise.allSettled(
+        ids.map(() => autoincrement.put({}))
+      )
+      expect(
+        results.some(
+          (result) =>
+            result.status === 'rejected' &&
+            result.reason instanceof ConditionalCheckFailedException
+        )
+      ).toBeTruthy()
     })
   })
 })
