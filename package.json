@@ -24,7 +24,7 @@
     "prepare:husky": "husky install",
     "prepare:tsc": "tsc",
     "prepare": "run-p prepare:*",
-    "test": "node setup-dynamodb-local.mjs && jest"
+    "test": "node setup-dynamodb-local.mjs && jest --detectOpenHandles"
   },
   "engines": {
     "node": ">=18"
