@@ -189,47 +189,50 @@ export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
       )
     ).Item
 
-    let counter: number | undefined = existingItem?.[this.props.attributeName]
+    const counter: number | undefined = existingItem?.[this.props.attributeName]
+    let ConditionExpression, ExpressionAttributeValues
 
     if (counter === undefined) {
       nextCounter = this.props.initialValue
-
-      // Existing item didn't have a version, so give it one
-      if (existingItem) {
-        existingItem[this.props.attributeName] = counter = nextCounter
-        nextCounter += 1
-      }
+      ConditionExpression = 'attribute_not_exists(#counter)'
     } else {
       nextCounter = counter + 1
+      ConditionExpression = '#counter = :counter'
+      ExpressionAttributeValues = {
+        ':counter': counter,
+      }
+    }
+
+    if (existingItem && counter === undefined) {
+      // Existing item didn't have a version, so give it one
+      existingItem[this.props.attributeName] = nextCounter
+      nextCounter += 1
     }
 
     const puts: PutCommandInput[] = [
       {
-        ConditionExpression: 'attribute_not_exists(#counter)',
+        ConditionExpression,
         ExpressionAttributeNames: {
           '#counter': this.props.attributeName,
         },
-        Item: existingItem,
-        TableName: this.props.tableName,
-      },
-    ]
-
-    if (existingItem) {
-      puts.push({
-        ConditionExpression:
-          'attribute_not_exists(#counter) OR #counter = :counter',
-        ExpressionAttributeNames: {
-          '#counter': this.props.attributeName,
-        },
-        ExpressionAttributeValues: {
-          ':counter': counter,
-        },
+        ExpressionAttributeValues,
         Item: {
           ...item,
           ...this.props.counterTableKey,
           [this.props.attributeName]: nextCounter,
         },
         TableName: this.props.counterTableName,
+      },
+    ]
+
+    if (existingItem) {
+      puts.push({
+        ConditionExpression: 'attribute_not_exists(#counter)',
+        ExpressionAttributeNames: {
+          '#counter': this.props.attributeName,
+        },
+        Item: existingItem,
+        TableName: this.props.tableName,
       })
     }
 

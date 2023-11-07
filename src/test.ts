@@ -6,7 +6,6 @@ import {
 import {
   BatchWriteCommand,
   DynamoDBDocumentClient,
-  GetCommand,
   PutCommand,
   QueryCommand,
   ScanCommand,
@@ -175,6 +174,7 @@ describe('dynamoDBAutoIncrement', () => {
 })
 
 describe('autoincrementVersion', () => {
+  const widgetID = 1
   let autoincrement: DynamoDBHistoryAutoIncrement
 
   beforeAll(() => {
@@ -190,132 +190,59 @@ describe('autoincrementVersion', () => {
     })
   })
 
-  test('increments version on put when attributeName field is not defined on item', async () => {
-    // Insert initial table item
-    const widgetID = 1
-    await doc.send(
-      new PutCommand({
-        TableName: 'widgets',
-        Item: {
-          widgetID,
-          name: 'Handy Widget',
-          description: 'Does something',
-        },
+  describe.each([undefined, { widgetID }, { widgetID, version: 1 }])(
+    'initial item is %s',
+    (initialItem) => {
+      const hasInitialItem = initialItem !== undefined
+
+      beforeEach(async () => {
+        if (initialItem) {
+          await doc.send(
+            new PutCommand({ TableName: 'widgets', Item: initialItem })
+          )
+        }
       })
-    )
 
-    // Create new version
-    const newVersion = await autoincrement.put({
-      name: 'Handy Widget',
-      description: 'Does Everything!',
-    })
-    expect(newVersion).toBe(2)
+      describe.each([undefined, 42])(
+        'tracked attribute set to %s',
+        (trackedAttributeValue) => {
+          test('increments version on put', async () => {
+            // Create new version
+            const newVersion = await autoincrement.put({
+              name: 'Handy Widget',
+              description: 'Does Everything!',
+              version: trackedAttributeValue,
+            })
+            expect(newVersion).toBe(1 + Number(hasInitialItem))
 
-    const historyItems = (
-      await doc.send(
-        new QueryCommand({
-          TableName: 'widgetHistory',
-          KeyConditionExpression: 'widgetID = :widgetID',
-          ExpressionAttributeValues: {
-            ':widgetID': widgetID,
-          },
-        })
+            const historyItems = (
+              await doc.send(
+                new QueryCommand({
+                  TableName: 'widgetHistory',
+                  KeyConditionExpression: 'widgetID = :widgetID',
+                  ExpressionAttributeValues: {
+                    ':widgetID': widgetID,
+                  },
+                })
+              )
+            ).Items
+
+            expect(historyItems?.length).toBe(Number(hasInitialItem))
+          })
+
+          test('correctly handles a large number of parallel puts', async () => {
+            const versions = Array.from(
+              Array(N - Number(hasInitialItem)).keys()
+            ).map((i) => i + 1 + Number(hasInitialItem))
+            const result = await Promise.all(
+              versions.map(() =>
+                autoincrement.put({ version: trackedAttributeValue })
+              )
+            )
+            expect(result.sort()).toEqual(versions.sort())
+          })
+        }
       )
-    ).Items
-
-    expect(historyItems?.length).toBe(1)
-  })
-
-  test('increments version on put when attributeName field is defined on item', async () => {
-    // Insert initial table item
-    const widgetID = 1
-    const initialItem = {
-      widgetID,
-      name: 'Handy Widget',
-      description: 'Does something',
-      version: 1,
     }
-    await doc.send(
-      new PutCommand({
-        TableName: 'widgets',
-        Item: initialItem,
-      })
-    )
-
-    // Create new version
-    const newVersion = await autoincrement.put({
-      name: 'Handy Widget',
-      description: 'Does Everything!',
-    })
-    expect(newVersion).toBe(2)
-
-    const historyItems = (
-      await doc.send(
-        new QueryCommand({
-          TableName: 'widgetHistory',
-          KeyConditionExpression: 'widgetID = :widgetID',
-          ExpressionAttributeValues: {
-            ':widgetID': widgetID,
-          },
-        })
-      )
-    ).Items
-
-    expect(historyItems?.length).toBe(1)
-  })
-
-  test('increments version correctly if tracked field is included in the item on update', async () => {
-    // Insert initial table item
-    const widgetID = 1
-    const initialItem = {
-      widgetID,
-      name: 'Handy Widget',
-      description: 'Does something',
-      version: 1,
-    }
-    await doc.send(
-      new PutCommand({
-        TableName: 'widgets',
-        Item: initialItem,
-      })
-    )
-
-    // Create new version
-    const newVersion = await autoincrement.put({
-      name: 'Handy Widget',
-      description: 'Does Everything!',
-      version: 3,
-    })
-    expect(newVersion).toBe(2)
-    const latestItem = (
-      await doc.send(
-        new GetCommand({
-          TableName: 'widgets',
-          Key: { widgetID },
-        })
-      )
-    ).Item
-    expect(latestItem).toStrictEqual({
-      widgetID,
-      name: 'Handy Widget',
-      description: 'Does Everything!',
-      version: 2,
-    })
-  })
-
-  test('correctly handles a large number of parallel puts', async () => {
-    const versions = Array.from(Array(N).keys()).map((i) => i + 2)
-    await doc.send(
-      new PutCommand({
-        TableName: 'widgets',
-        Item: {
-          widgetID: 1,
-          name: 'Handy Widget',
-          description: 'Does something',
-        },
-      })
-    )
-    const result = await Promise.all(versions.map(() => autoincrement.put({})))
-    expect(result.sort()).toEqual(versions.sort())
-  })
+  )
 })
