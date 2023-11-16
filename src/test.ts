@@ -207,6 +207,10 @@ describe('autoincrementVersion', () => {
         'tracked attribute set to %s',
         (trackedAttributeValue) => {
           test('increments version on put', async () => {
+            expect(await autoincrement.list()).toEqual([])
+            expect(await autoincrement.get()).toEqual(initialItem)
+            expect(await autoincrement.get(1)).toEqual(undefined)
+
             // Create new version
             const newVersion = await autoincrement.put({
               name: 'Handy Widget',
@@ -228,6 +232,10 @@ describe('autoincrementVersion', () => {
             ).Items
 
             expect(historyItems?.length).toBe(Number(hasInitialItem))
+
+            expect(await autoincrement.list()).toEqual(
+              historyItems?.map((_, i) => i + 1) ?? []
+            )
           })
 
           test('correctly handles a large number of parallel puts', async () => {

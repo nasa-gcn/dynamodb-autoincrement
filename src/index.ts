@@ -5,6 +5,7 @@ import {
   type PutCommandInput,
   PutCommand,
   GetCommand,
+  QueryCommand,
 } from '@aws-sdk/lib-dynamodb'
 import type { NativeAttributeValue } from '@aws-sdk/util-dynamodb'
 
@@ -177,6 +178,55 @@ export class DynamoDBAutoIncrement extends BaseDynamoDBAutoIncrement {
  * ```
  */
 export class DynamoDBHistoryAutoIncrement extends BaseDynamoDBAutoIncrement {
+  async list(): Promise<number[]> {
+    const { Items } = await this.props.doc.send(
+      new QueryCommand({
+        TableName: this.props.tableName,
+        ExpressionAttributeNames: {
+          ...Object.fromEntries(
+            Object.keys(this.props.counterTableKey).map((key, i) => [
+              `#${i}`,
+              key,
+            ])
+          ),
+          '#counter': this.props.attributeName,
+        },
+        ExpressionAttributeValues: Object.fromEntries(
+          Object.values(this.props.counterTableKey).map((value, i) => [
+            `:${i}`,
+            value,
+          ])
+        ),
+        KeyConditionExpression: Object.keys(this.props.counterTableKey)
+          .map((_, i) => `#${i} = :${i}`)
+          .join(' AND '),
+        ProjectionExpression: '#counter',
+      })
+    )
+
+    return Items?.map((item) => item[this.props.attributeName]).sort() ?? []
+  }
+
+  async get(version?: number) {
+    const { Item } = await this.props.doc.send(
+      new GetCommand(
+        version === undefined
+          ? {
+              TableName: this.props.counterTableName,
+              Key: this.props.counterTableKey,
+            }
+          : {
+              TableName: this.props.tableName,
+              Key: {
+                ...this.props.counterTableKey,
+                [this.props.attributeName]: version,
+              },
+            }
+      )
+    )
+    return Item
+  }
+
   protected async next(item: Record<string, NativeAttributeValue>) {
     let nextCounter
 
