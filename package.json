@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@nasa-gcn/eslint-config-gitignore": "^0.0.1",
-    "@shelf/jest-dynamodb": "^3.4.2",
+    "@shelf/jest-dynamodb": "^3.4.4",
     "@tsconfig/node14": "^1.0.3",
     "@types/jest": "^29.2.5",
     "@typescript-eslint/eslint-plugin": "^5.48.0",
