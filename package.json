@@ -1,7 +1,7 @@
 {
   "name": "@nasa-gcn/dynamodb-autoincrement",
   "description": "Use optimistic locking to put DynamoDB records with auto-incrementing attributes",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "repository": {
     "type": "git",
     "url": "github:nasa-gcn/dynamodb-autoincrement"
