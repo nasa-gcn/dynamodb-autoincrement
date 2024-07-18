@@ -36,7 +36,7 @@
     "@aws-sdk/util-dynamodb": "^3.188.0"
   },
   "devDependencies": {
-    "@nasa-gcn/eslint-config-gitignore": "^0.0.1",
+    "@nasa-gcn/eslint-config-gitignore": "^0.0.2",
     "@shelf/jest-dynamodb": "^3.4.2",
     "@tsconfig/node14": "^14.1.2",
     "@types/jest": "^29.2.5",
