@@ -9,4 +9,5 @@ on:
 jobs:
   build:
     uses: nasa-gcn/.github/.github/workflows/node.yml@main
-    secrets: inherit
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
