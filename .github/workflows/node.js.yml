@@ -9,3 +9,4 @@ on:
 jobs:
   build:
     uses: nasa-gcn/.github/.github/workflows/node.yml@main
+    secrets: inherit
