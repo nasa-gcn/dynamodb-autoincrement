@@ -41,7 +41,7 @@
     "@tsconfig/node14": "^14.1.2",
     "@types/jest": "^29.2.5",
     "@typescript-eslint/eslint-plugin": "^7.16.1",
-    "@typescript-eslint/parser": "^7.16.1",
+    "@typescript-eslint/parser": "^8.26.1",
     "eslint": "^8.31.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-jest": "^28.6.0",
