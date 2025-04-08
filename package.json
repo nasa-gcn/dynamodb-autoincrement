@@ -28,7 +28,7 @@
     "test": "jest"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.188.0",
@@ -38,7 +38,7 @@
   "devDependencies": {
     "@nasa-gcn/eslint-config-gitignore": "^0.0.2",
     "@shelf/jest-dynamodb": "^3.4.2",
-    "@tsconfig/node14": "^14.1.2",
+    "@tsconfig/node20": "^20.1.5",
     "@types/jest": "^29.2.5",
     "@typescript-eslint/eslint-plugin": "^7.16.1",
     "@typescript-eslint/parser": "^7.16.1",
