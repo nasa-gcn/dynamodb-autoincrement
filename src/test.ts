@@ -11,6 +11,7 @@ import {
   ScanCommand,
   paginateScan,
 } from '@aws-sdk/lib-dynamodb'
+
 import type { DynamoDBAutoIncrementProps } from '.'
 import { DynamoDBAutoIncrement, DynamoDBHistoryAutoIncrement } from '.'
 
