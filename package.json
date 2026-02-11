@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@nasa-gcn/rcfiles": "^0.1.0",
-    "@shelf/jest-dynamodb": "^3.4.2",
+    "@shelf/jest-dynamodb": "^4.0.2",
     "@tsconfig/node20": "^20.1.5",
     "@types/jest": "^29.2.5",
     "eslint": "^9.39.2",
