@@ -4,7 +4,7 @@
   "version": "2.2.1",
   "repository": {
     "type": "git",
-    "url": "github:nasa-gcn/dynamodb-autoincrement"
+    "url": "git+https://github.com/nasa-gcn/dynamodb-autoincrement.git"
   },
   "license": "Apache-2.0",
   "contributors": [
